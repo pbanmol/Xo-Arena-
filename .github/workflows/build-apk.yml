@@ -60,16 +60,11 @@ jobs:
             exit 1
           fi
 
-      - name: Setup gradle command shim
-        run: |
-          echo '#!/usr/bin/env bash' > gradle
-          echo 'exec ./gradlew "$@"' >> gradle
-          chmod +x gradle
-          echo "$PWD" >> $GITHUB_PATH
-
       - name: Build the debug APK
         run: |
-          gradle :app:assembleDebug --stacktrace --no-daemon
+          cd android
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
       - name: Verify the APK
         run: |
@@ -133,6 +128,6 @@ jobs:
             echo "✅ GitHub Release published successfully!" >> $GITHUB_STEP_SUMMARY
             gh release view "debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}" || true
           else
-            echo "⚠️ Warning: GitHub Release publishing failed or skipped, but the APK build succeeded." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Warning: GitHub Release publishing failed or skipped, but the APK build succeeded." >> $GITHUB_SUMMARY
             echo "The Actions artifact named **app-debug-apk** is available for download." >> $GITHUB_STEP_SUMMARY
           fi
