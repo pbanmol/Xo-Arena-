@@ -60,9 +60,15 @@ jobs:
             exit 1
           fi
 
+      - name: Setup gradle command shim
+        run: |
+          echo '#!/usr/bin/env bash' > gradle
+          echo 'cd android && exec ./gradlew "$@"' >> gradle
+          chmod +x gradle
+          echo "$PWD" >> $GITHUB_PATH
+
       - name: Build the debug APK
         run: |
-          cd android
           gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Verify the APK
