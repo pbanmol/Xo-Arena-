@@ -12,6 +12,7 @@ jobs:
   build-apk:
     name: Build and Publish Debug APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -21,12 +22,16 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          java-package: jdk
 
       - name: Build the debug APK
         run: |
           cd android
           chmod +x gradlew
+          export JAVA_HOME=$JAVA_HOME
           ./gradlew assembleDebug --stacktrace --no-daemon
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
