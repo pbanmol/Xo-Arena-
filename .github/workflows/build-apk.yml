@@ -49,7 +49,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '9.3.1'
-          dependency-graph: disabled
 
       - name: Create temporary debug keystore
         run: |
@@ -64,7 +63,7 @@ jobs:
       - name: Setup gradle command shim
         run: |
           echo '#!/usr/bin/env bash' > gradle
-          echo 'cd android && exec ./gradlew "$@"' >> gradle
+          echo 'exec ./gradlew "$@"' >> gradle
           chmod +x gradle
           echo "$PWD" >> $GITHUB_PATH
 
