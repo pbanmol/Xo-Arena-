@@ -1,0 +1,3305 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>XO ARENA — Competitive Tic Tac Toe</title>
+  <meta name="description" content="XO ARENA - Professional Competitive Tic Tac Toe Gaming Platform. Made by PB ANMOL." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* =====================================================================
+       CSS DESIGN SYSTEM - CLEAN MATCHING THEMES
+       ===================================================================== */
+    :root {
+      --font-display: 'Rajdhani', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      --board-size: min(88vw, 360px);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* DEFAULT CLEAN LIGHT THEME (EXACT MATCHING SURFACES) */
+    html[data-theme="light"], :root {
+      --bg-base: #ffffff;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f0ecfa;
+      --bg-card: #ffffff;
+      --border-subtle: #e5def5;
+      --border-accent: #6f2cf4;
+      --text-main: #180d38;
+      --text-muted: #6f6291;
+      --accent-primary: #6f2cf4;
+      --accent-secondary: #0ea5e9;
+      --accent-glow: 0 6px 20px rgba(111, 44, 244, 0.2);
+      --player-x: #6f2cf4;
+      --player-o: #0ea5e9;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --header-bg: #ffffff;
+      --nav-bg: #ffffff;
+      --nav-border: #e5def5;
+    }
+
+    /* Additional light accent themes (all keep a white page background) */
+    html[data-theme="ocean"] { --bg-base:#ffffff; --bg-surface:#ffffff; --bg-surface-elevated:#eaf6ff; --bg-card:#ffffff; --border-subtle:#d6eaf8; --border-accent:#0284c7; --text-main:#082f49; --text-muted:#52738a; --accent-primary:#0284c7; --accent-secondary:#06b6d4; --accent-glow:0 6px 20px rgba(2,132,199,.18); --player-x:#0284c7; --player-o:#06b6d4; --danger:#ef4444; --success:#10b981; --warning:#f59e0b; --header-bg:#fff; --nav-bg:#fff; --nav-border:#d6eaf8; }
+    html[data-theme="emerald"] { --bg-base:#ffffff; --bg-surface:#fff; --bg-surface-elevated:#eafaf2; --bg-card:#fff; --border-subtle:#d1fae5; --border-accent:#059669; --text-main:#064e3b; --text-muted:#52796b; --accent-primary:#059669; --accent-secondary:#34d399; --accent-glow:0 6px 20px rgba(5,150,105,.18); --player-x:#059669; --player-o:#0ea5e9; --danger:#ef4444; --success:#10b981; --warning:#f59e0b; --header-bg:#fff; --nav-bg:#fff; --nav-border:#d1fae5; }
+    html[data-theme="crimson"] { --bg-base:#ffffff; --bg-surface:#fff; --bg-surface-elevated:#fff0f2; --bg-card:#fff; --border-subtle:#ffe0e5; --border-accent:#e11d48; --text-main:#4c0519; --text-muted:#8b5263; --accent-primary:#e11d48; --accent-secondary:#fb7185; --accent-glow:0 6px 20px rgba(225,29,72,.18); --player-x:#e11d48; --player-o:#7c3aed; --danger:#ef4444; --success:#10b981; --warning:#f59e0b; --header-bg:#fff; --nav-bg:#fff; --nav-border:#ffe0e5; }
+
+    /* Optional dark mode overrides every accent theme */
+    html[data-dark="true"] { --bg-base:#09090f; --bg-surface:#151520; --bg-surface-elevated:#222232; --bg-card:#171725; --border-subtle:#343448; --text-main:#f4f4fa; --text-muted:#a1a1b5; --header-bg:#11111c; --nav-bg:#11111c; --nav-border:#343448; }
+    html[data-dark="true"][data-theme="light"] { --accent-primary:#7c3aed; --accent-secondary:#22d3ee; --player-x:#a78bfa; --player-o:#22d3ee; --border-accent:#a78bfa; --accent-glow:0 0 20px rgba(124,58,237,.35); }
+    html[data-dark="true"][data-theme="ocean"] { --accent-primary:#38bdf8; --accent-secondary:#22d3ee; --player-x:#38bdf8; --player-o:#22d3ee; }
+    html[data-dark="true"][data-theme="emerald"] { --accent-primary:#34d399; --accent-secondary:#6ee7b7; --player-x:#34d399; --player-o:#38bdf8; }
+    html[data-dark="true"][data-theme="crimson"] { --accent-primary:#fb7185; --accent-secondary:#c084fc; --player-x:#fb7185; --player-o:#c084fc; }
+
+    /* NEON PURPLE DARK THEME */
+    html[data-theme="neon"] {
+      --bg-base: #0a0518;
+      --bg-surface: #130a2a;
+      --bg-surface-elevated: #1d103f;
+      --bg-card: #140b2e;
+      --border-subtle: rgba(168, 85, 247, 0.2);
+      --border-accent: #a855f7;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-primary: #a855f7;
+      --accent-secondary: #06b6d4;
+      --accent-glow: 0 0 20px rgba(168, 85, 247, 0.45);
+      --player-x: #a855f7;
+      --player-o: #06b6d4;
+      --danger: #f43f5e;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --header-bg: #0f0724;
+      --nav-bg: #0f0724;
+      --nav-border: rgba(168, 85, 247, 0.2);
+    }
+
+    /* BLACK LUXURY THEME */
+    html[data-theme="black"] {
+      --bg-base: #000000;
+      --bg-surface: #0e0e0e;
+      --bg-surface-elevated: #181818;
+      --bg-card: #121212;
+      --border-subtle: #262626;
+      --border-accent: #ffffff;
+      --text-main: #ffffff;
+      --text-muted: #888888;
+      --accent-primary: #ffffff;
+      --accent-secondary: #a3a3a3;
+      --accent-glow: 0 0 20px rgba(255, 255, 255, 0.2);
+      --player-x: #ffffff;
+      --player-o: #737373;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warning: #eab308;
+      --header-bg: #0a0a0a;
+      --nav-bg: #0a0a0a;
+      --nav-border: #262626;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      line-height: 1.5;
+      transition: background-color var(--transition-normal), color var(--transition-normal);
+    }
+
+    input, button, select, textarea {
+      font-family: inherit;
+      outline: none;
+      user-select: text;
+    }
+
+    /* TOP HEADER FIX */
+    .app-header {
+      position: relative;
+      z-index: 40;
+      background-color: var(--header-bg);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: calc(12px + var(--safe-top)) 18px 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color var(--transition-normal);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--player-x), var(--player-o));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 20px;
+      color: #fff;
+      box-shadow: var(--accent-glow);
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 22px;
+      letter-spacing: 1px;
+      color: var(--text-main);
+      line-height: 1.1;
+    }
+
+    .brand-subtitle {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      font-size: 18px;
+    }
+
+    .btn-icon:active {
+      transform: scale(0.92);
+    }
+
+    /* MAIN CONTAINER */
+    .main-container {
+      flex: 1;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px 16px calc(80px + var(--safe-bottom)) 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-screen {
+      display: none;
+      animation: fadeIn 0.25s ease-out forwards;
+      width: 100%;
+    }
+
+    .tab-screen.active {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* CARD COMPONENTS */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      position: relative;
+      overflow: hidden;
+      transition: background-color var(--transition-normal);
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* PROFILE HERO CARD */
+    .profile-hero {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .avatar-wrap {
+      position: relative;
+      width: 62px;
+      height: 62px;
+      border-radius: var(--radius-full);
+      padding: 2px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      flex-shrink: 0;
+    }
+
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: var(--bg-surface-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      color: var(--accent-primary);
+      font-family: var(--font-display);
+      font-weight: 700;
+      overflow: hidden;
+    }
+
+    .avatar-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: var(--radius-full);
+    }
+
+    .profile-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .profile-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+
+    .profile-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .username-tag {
+      color: var(--accent-primary);
+      font-weight: 700;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .badge-level {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--accent-primary);
+      color: #fff;
+    }
+
+    .xp-bar-bg {
+      width: 100%;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background: var(--bg-surface-elevated);
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .xp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      width: 0%;
+      transition: width var(--transition-normal);
+    }
+
+    /* STATS GRID */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .stat-box {
+      background: var(--bg-surface-elevated);
+      border-radius: var(--radius-md);
+      padding: 10px 4px;
+      text-align: center;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .stat-val {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    /* GAME MODE LAUNCHERS */
+    .mode-cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .mode-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+      transition: all var(--transition-fast);
+    }
+
+    .mode-card:hover {
+      border-color: var(--accent-primary);
+      transform: translateY(-2px);
+      box-shadow: var(--accent-glow);
+    }
+
+    .mode-card:active {
+      transform: scale(0.98);
+    }
+
+    .mode-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mode-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: var(--accent-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .mode-info h4 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .mode-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* BOARD & ARENA SYSTEM */
+    .game-arena-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      gap: 16px;
+    }
+
+    .scoreboard-hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: var(--board-size);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 16px;
+    }
+
+    .player-hud-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      position: relative;
+    }
+
+    .hud-name {
+      font-size: 13px;
+      font-weight: 600;
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hud-badge {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 18px;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 4px 0;
+    }
+
+    .hud-badge.x {
+      color: var(--player-x);
+      border: 2px solid var(--player-x);
+    }
+
+    .hud-badge.o {
+      color: var(--player-o);
+      border: 2px solid var(--player-o);
+    }
+
+    .hud-score {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .turn-indicator-pill {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--accent-primary);
+      box-shadow: var(--accent-glow);
+      text-align: center;
+    }
+
+    .board-grid {
+      width: var(--board-size);
+      height: var(--board-size);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 10px;
+      background: var(--bg-surface-elevated);
+      padding: 10px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    .board-cell {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: min(15vw, 64px);
+      font-weight: 700;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      user-select: none;
+    }
+
+    .board-cell:active:not(.taken) {
+      transform: scale(0.94);
+      background: var(--bg-surface-elevated);
+    }
+
+    .board-cell.cell-x {
+      color: var(--player-x);
+      cursor: not-allowed;
+    }
+
+    .board-cell.cell-o {
+      color: var(--player-o);
+      cursor: not-allowed;
+    }
+
+    .board-cell.win-highlight {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.05));
+      border-color: var(--success);
+      animation: pulseWin 1s infinite alternate;
+    }
+
+    @keyframes pulseWin {
+      from { transform: scale(0.98); }
+      to { transform: scale(1.03); }
+    }
+
+    .game-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: var(--board-size);
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all var(--transition-fast);
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .btn-primary {
+      background: var(--accent-primary);
+      color: #ffffff;
+      box-shadow: var(--accent-glow);
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #ffffff;
+    }
+
+    .btn-outline {
+      border: 1px solid var(--border-subtle);
+      background: transparent;
+      color: var(--text-main);
+    }
+
+    .pill-tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--bg-surface-elevated);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      width: 100%;
+      max-width: var(--board-size);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .pill-tab {
+      flex: 1;
+      padding: 8px 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all var(--transition-fast);
+    }
+
+    .pill-tab.active {
+      background: var(--accent-primary);
+      color: #ffffff;
+      box-shadow: var(--accent-glow);
+    }
+
+    /* ONLINE PLAYERS */
+    .online-banner {
+      background: linear-gradient(135deg, rgba(111, 44, 244, 0.1), rgba(14, 165, 233, 0.1));
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      text-align: center;
+    }
+
+    .player-list-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .player-row-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .player-row-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-full);
+      object-fit: cover;
+      background: var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--accent-primary);
+      font-size: 16px;
+    }
+
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--radius-full);
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .you-badge {
+      font-size: 10px;
+      background: var(--accent-primary);
+      color: white;
+      padding: 1px 6px;
+      border-radius: var(--radius-full);
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 24px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* CHAT */
+    .match-chat-card {
+      width: 100%;
+      max-width: var(--board-size);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 220px;
+    }
+
+    .chat-header {
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--bg-surface-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      word-break: break-word;
+    }
+
+    .chat-bubble.own {
+      align-self: flex-end;
+      background: var(--accent-primary);
+      color: #fff;
+      border-bottom-right-radius: 2px;
+    }
+
+    .chat-bubble.opponent {
+      align-self: flex-start;
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      border-bottom-left-radius: 2px;
+    }
+
+    .chat-input-bar {
+      display: flex;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+    }
+
+    .chat-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 8px 12px;
+      color: var(--text-main);
+      font-size: 13px;
+    }
+
+    .btn-chat-send {
+      padding: 8px 14px;
+      background: var(--accent-primary);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* HISTORY & LEADERBOARD */
+    .history-list, .leaderboard-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-item, .leaderboard-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .leaderboard-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-full);
+      object-fit: cover;
+      background: var(--bg-surface-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    .badge-win { color: var(--success); font-weight: 700; }
+    .badge-loss { color: var(--danger); font-weight: 700; }
+    .badge-draw { color: var(--warning); font-weight: 700; }
+
+    /* SETTINGS */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+
+    .setting-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .setting-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      transition: .2s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* BOTTOM NAV BAR FIX */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      height: calc(64px + var(--safe-bottom));
+      padding-bottom: var(--safe-bottom);
+      background-color: var(--nav-bg);
+      border-top: 1px solid var(--nav-border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.03);
+      transition: background-color var(--transition-normal);
+    }
+
+    .nav-btn {
+      flex: 1;
+      height: 100%;
+      background: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .nav-btn.active {
+      color: var(--accent-primary);
+    }
+
+    .nav-icon {
+      font-size: 18px;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* AUTH MODAL */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 8, 35, 0.65);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+      animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 24px;
+      padding: 24px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+      position: relative;
+    }
+
+    .auth-tabs-row {
+      display: flex;
+      gap: 8px;
+      background: var(--bg-surface-elevated);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      margin-bottom: 18px;
+    }
+
+    .auth-tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .auth-tab-btn.active {
+      background: var(--accent-primary);
+      color: #ffffff;
+      box-shadow: var(--accent-glow);
+    }
+
+    .input-field-wrap {
+      position: relative;
+      margin-bottom: 12px;
+      text-align: left;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: var(--text-muted);
+    }
+
+    .form-input-auth {
+      width: 100%;
+      padding: 12px 14px 12px 42px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 14px;
+      transition: border-color var(--transition-fast);
+    }
+
+    .form-input-auth:focus {
+      border-color: var(--accent-primary);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent-primary);
+    }
+
+    .toast-container {
+      position: fixed;
+      top: calc(14px + var(--safe-top));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .toast {
+      padding: 10px 16px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: toastIn 0.25s ease-out forwards;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .dev-badge {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 16px 0 8px;
+    }
+  </style>
+
+  <!-- Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { 
+      getAuth, 
+      signInAnonymously, 
+      createUserWithEmailAndPassword,
+      signInWithEmailAndPassword,
+      updateProfile,
+      onAuthStateChanged, 
+      signOut 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      setDoc, 
+      getDoc, 
+      updateDoc, 
+      collection, 
+      query, 
+      orderBy, 
+      limit, 
+      where,
+      getDocs, 
+      onSnapshot, 
+      serverTimestamp,
+      runTransaction,
+      increment,
+      writeBatch,
+      deleteDoc 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { 
+      getDatabase, 
+      ref, 
+      set, 
+      onValue, 
+      onDisconnect, 
+      serverTimestamp as rtdbTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    window.FBASE_MOD = {
+      initializeApp,
+      getAuth, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, onAuthStateChanged, signOut,
+      getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, orderBy, limit, where, getDocs, onSnapshot, serverTimestamp, runTransaction, increment, writeBatch, deleteDoc,
+      getDatabase, ref, set, onValue, onDisconnect, rtdbTimestamp
+    };
+  </script>
+</head>
+<body>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- AUTHENTICATION MODAL -->
+  <div id="modalWelcomeAuth" class="modal-backdrop">
+    <div class="modal-card">
+      <div style="font-size: 44px; margin-bottom: 6px;">🎮</div>
+      <h2 style="font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-main);">XO ARENA</h2>
+      <p id="authSubtitle" style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Sign in with Email or create an account</p>
+
+      <div class="auth-tabs-row">
+        <button id="tabBtnSignIn" class="auth-tab-btn active">👤 Sign In</button>
+        <button id="tabBtnRegister" class="auth-tab-btn">🛡️ Register</button>
+      </div>
+
+      <div id="registerExtraFields" style="display: none;">
+        <div class="input-field-wrap">
+          <span class="input-icon">👤</span>
+          <input type="text" id="authInputFullName" class="form-input-auth" placeholder="Enter your name" maxlength="20" />
+        </div>
+        <div class="input-field-wrap">
+          <span class="input-icon">🏷️</span>
+          <input type="text" id="authInputUsername" class="form-input-auth" placeholder="Username (e.g. PB_ANMOL)" maxlength="15" />
+        </div>
+      </div>
+
+      <div class="input-field-wrap">
+        <span class="input-icon">✉️</span>
+        <input type="email" id="authInputEmail" class="form-input-auth" placeholder="Email Address" />
+      </div>
+      <div class="input-field-wrap">
+        <span class="input-icon">🔒</span>
+        <input type="password" id="authInputPassword" class="form-input-auth" placeholder="Password (min 6 chars)" />
+      </div>
+
+      <button id="btnSubmitAuth" class="btn btn-primary" style="width: 100%; padding: 13px; font-size: 15px; margin-bottom: 12px;">
+        Sign In
+      </button>
+
+      <div style="display: flex; align-items: center; gap: 8px; margin: 6px 0 12px;">
+        <div style="flex:1; height:1px; background:var(--border-subtle);"></div>
+        <span style="font-size: 12px; color: var(--text-muted);">or</span>
+        <div style="flex:1; height:1px; background:var(--border-subtle);"></div>
+      </div>
+
+      <button id="btnAuthContinueGuest" class="btn btn-secondary" style="width: 100%;">
+        ⚡ Play Directly as Guest
+      </button>
+    </div>
+  </div>
+
+  <!-- APPLICATION HEADER -->
+  <header class="app-header">
+    <div class="brand-group">
+      <div class="brand-logo">XO</div>
+      <div>
+        <div class="brand-title">XO ARENA</div>
+        <div class="brand-subtitle">Competitive Gaming</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="headerThemeBtn" title="Change Theme">🎨</button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="main-container">
+
+    <!-- SCREEN 1: HOME DASHBOARD -->
+    <section id="screenHome" class="tab-screen active">
+      <div class="card">
+        <div class="profile-hero">
+          <div class="avatar-wrap">
+            <div id="homeAvatar" class="avatar-img">P</div>
+          </div>
+          <div class="profile-info">
+            <div id="homePlayerName" class="profile-name">Player</div>
+            <div class="profile-sub">
+              <span id="homePlayerUsername" class="username-tag">@username</span>
+              <span id="homePlayerLevel" class="badge-level">LVL 1</span>
+            </div>
+            <div class="xp-bar-bg">
+              <div id="homeXpFill" class="xp-bar-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div id="statTotalMatches" class="stat-val">0</div>
+            <div class="stat-label">Matches</div>
+          </div>
+          <div class="stat-box">
+            <div id="statWins" class="stat-val">0</div>
+            <div class="stat-label">Wins</div>
+          </div>
+          <div class="stat-box">
+            <div id="statWinRate" class="stat-val">0%</div>
+            <div class="stat-label">Win Rate</div>
+          </div>
+          <div class="stat-box">
+            <div id="statStreak" class="stat-val">0</div>
+            <div class="stat-label">Streak</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mode-cards">
+        <div class="mode-card" id="btnLaunchComputer">
+          <div class="mode-left">
+            <div class="mode-icon">🤖</div>
+            <div class="mode-info">
+              <h4>Play with Computer</h4>
+              <p>Practice vs Easy, Tactical, or Minimax AI</p>
+            </div>
+          </div>
+          <span>➔</span>
+        </div>
+
+        <div class="mode-card" id="btnLaunchLocal">
+          <div class="mode-left">
+            <div class="mode-icon">👥</div>
+            <div class="mode-info">
+              <h4>Play with Friend</h4>
+              <p>Pass & Play on this phone</p>
+            </div>
+          </div>
+          <span>➔</span>
+        </div>
+
+        <div class="mode-card" id="btnLaunchOnlineTab">
+          <div class="mode-left">
+            <div class="mode-icon">⚡</div>
+            <div class="mode-info">
+              <h4>Online Multiplayer</h4>
+              <p>Challenge active players & matchmaking</p>
+            </div>
+          </div>
+          <span>➔</span>
+        </div>
+      </div>
+
+      <div class="dev-badge">XO ARENA • MADE BY PB ANMOL</div>
+    </section>
+
+    <!-- SCREEN 2: GAME ARENA -->
+    <section id="screenArena" class="tab-screen">
+      <div class="game-arena-wrapper">
+        <div class="scoreboard-hud">
+          <div class="player-hud-card">
+            <span id="hudPlayerXName" class="hud-name">Player X</span>
+            <div class="hud-badge x">X</div>
+            <span id="hudScoreX" class="hud-score">0</span>
+          </div>
+
+          <div id="turnIndicatorBadge" class="turn-indicator-pill">X TURN</div>
+
+          <div class="player-hud-card">
+            <span id="hudPlayerOName" class="hud-name">Player O</span>
+            <div class="hud-badge o">O</div>
+            <span id="hudScoreO" class="hud-score">0</span>
+          </div>
+        </div>
+
+        <div id="aiDifficultySelector" class="pill-tabs" style="display: none;">
+          <div class="pill-tab" data-diff="easy">Easy</div>
+          <div class="pill-tab active" data-diff="classic">Classic</div>
+          <div class="pill-tab" data-diff="hard">Hard (Minimax)</div>
+        </div>
+
+        <div id="tictactoeBoard" class="board-grid">
+          <div class="board-cell" data-idx="0"></div>
+          <div class="board-cell" data-idx="1"></div>
+          <div class="board-cell" data-idx="2"></div>
+          <div class="board-cell" data-idx="3"></div>
+          <div class="board-cell" data-idx="4"></div>
+          <div class="board-cell" data-idx="5"></div>
+          <div class="board-cell" data-idx="6"></div>
+          <div class="board-cell" data-idx="7"></div>
+          <div class="board-cell" data-idx="8"></div>
+        </div>
+
+        <div class="game-actions-row">
+          <button id="btnUndoMove" class="btn btn-secondary">↩ Undo</button>
+          <button id="btnRestartGame" class="btn btn-secondary">🔄 Restart</button>
+          <button id="btnLeaveArena" class="btn btn-outline">Exit</button>
+        </div>
+
+        <div id="onlineChatSection" class="match-chat-card" style="display: none;">
+          <div class="chat-header">Match Chat</div>
+          <div id="chatMessageList" class="chat-messages"></div>
+          <form id="chatForm" class="chat-input-bar">
+            <input type="text" id="chatInputText" class="chat-input" placeholder="Type message..." maxlength="300" autocomplete="off" />
+            <button type="submit" class="btn-chat-send">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: ONLINE LOBBY -->
+    <section id="screenOnline" class="tab-screen">
+      <div class="card online-banner">
+        <h3 style="font-size: 20px; font-weight: 700; color: var(--text-main);">Real-Time Arena</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 6px 0 14px;">
+          Compete against real authenticated players worldwide
+        </p>
+        <button id="btnQuickMatch" class="btn btn-primary" style="width: 100%;">
+          ⚡ Quick Matchmaking
+        </button>
+        <div id="quickMatchStatus" aria-live="polite" style="display:none;text-align:center;margin-top:10px;font-size:13px;color:var(--accent-primary);font-weight:700;">Joining in 5...</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Active Online Players</span>
+          <button id="btnRefreshPlayers" class="btn-icon" style="width: 30px; height: 30px;">🔄</button>
+        </div>
+        <div id="onlinePlayerList" class="player-list-wrap">
+          <div class="empty-state">No other players online right now.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Direct Challenge by Username</div>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="directChallengeInput" class="form-input" style="margin-bottom:0;" placeholder="Enter Username (e.g. PB_ANMOL)..." />
+          <button id="btnSendDirectChallenge" class="btn btn-secondary" style="white-space: nowrap;">Challenge</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: MATCH HISTORY -->
+    <section id="screenHistory" class="tab-screen">
+      <div class="card">
+        <div class="card-title">
+          <span>Match History</span>
+          <button id="btnClearLocalHistory" class="btn-outline" style="font-size: 11px; padding: 4px 8px; border-radius: var(--radius-sm);">Clear Local</button>
+        </div>
+        <div id="matchHistoryList" class="history-list">
+          <div class="empty-state">No matches recorded yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: LEADERBOARD -->
+    <section id="screenLeaderboard" class="tab-screen">
+      <div class="card">
+        <div class="card-title">Global Leaderboard</div>
+        <div id="leaderboardList" class="leaderboard-list">
+          <div class="empty-state">Loading ranks...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 6: PROFILE -->
+    <section id="screenProfile" class="tab-screen">
+      <div class="card">
+        <div class="card-title">Player Profile</div>
+        
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+          <div class="avatar-wrap" style="width:70px; height:70px;">
+            <div id="profileEditAvatar" class="avatar-img">P</div>
+          </div>
+          <div>
+            <label class="btn btn-secondary" style="font-size: 12px; padding: 8px 12px; cursor: pointer;">
+              📷 Change Photo
+              <input type="file" id="inputAvatarFile" accept="image/*" style="display: none;" />
+            </label>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">PNG, JPG under 1MB</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div>
+            <label style="font-size: 12px; color: var(--text-muted);">Display Name</label>
+            <input type="text" id="inputEditDisplayName" class="form-input" maxlength="20" />
+          </div>
+          <div>
+            <label style="font-size: 12px; color: var(--text-muted);">Unique Username (Free Fire Identity)</label>
+            <input type="text" id="inputEditUsername" class="form-input" maxlength="15" />
+          </div>
+          <button id="btnSaveProfileDetails" class="btn btn-primary">Save Profile Info</button>
+        </div>
+
+        <div style="margin-top: 18px; border-top: 1px solid var(--border-subtle); padding-top: 14px;">
+          <div class="card-title">Account Status</div>
+          <p id="profileAccountType" style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Checking...</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Achievements</div>
+        <div id="achievementsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+      </div>
+    </section>
+
+    <!-- SCREEN 7: SETTINGS -->
+    <section id="screenSettings" class="tab-screen">
+      <div class="card">
+        <div class="card-title">Preferences</div>
+        
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">App Theme</div>
+            <div class="setting-desc">Switch visual style</div>
+          </div>
+          <select id="selectAppTheme" class="form-input" style="width: 130px; margin: 0; padding: 6px;">
+            <option value="light" selected>Light Modern</option>
+            <option value="neon">Neon Purple</option>
+            <option value="black">Black Luxury</option>
+            <option value="ocean">Ocean Blue</option>
+            <option value="emerald">Emerald</option>
+            <option value="crimson">Crimson</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-title">Dark Mode</div><div class="setting-desc">Use dark background with any theme</div></div>
+          <label class="switch"><input type="checkbox" id="toggleDarkMode" /><span class="slider"></span></label>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">Sound Effects</div>
+            <div class="setting-desc">Match audio synthesizer</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleSoundFx" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">Haptic Feedback</div>
+            <div class="setting-desc">Vibrate on device for moves</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleHaptics" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Account & Data</div>
+        <button id="btnResetLocalData" class="btn btn-danger" style="width: 100%; margin-bottom: 10px;">Reset Account Data</button>
+        <button id="btnSignOutAccount" class="btn btn-secondary" style="width: 100%;">Switch Account / Sign Out</button>
+      </div>
+
+      <div class="dev-badge">XO ARENA • MADE BY PB ANMOL</div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION BAR -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="screenHome">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </button>
+    <button class="nav-btn" data-tab="screenOnline">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-label">Online</span>
+    </button>
+    <button class="nav-btn" data-tab="screenHistory">
+      <span class="nav-icon">📜</span>
+      <span class="nav-label">History</span>
+    </button>
+    <button class="nav-btn" data-tab="screenLeaderboard">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Ranks</span>
+    </button>
+    <button class="nav-btn" data-tab="screenProfile">
+      <span class="nav-icon">👤</span>
+      <span class="nav-label">Profile</span>
+    </button>
+    <button class="nav-btn" data-tab="screenSettings">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">Settings</span>
+    </button>
+  </nav>
+
+  <!-- RESULT MODAL -->
+  <div id="modalResult" class="modal-backdrop">
+    <div class="modal-card">
+      <div id="modalResultIcon" style="font-size: 44px; margin-bottom: 8px;">🏆</div>
+      <div id="modalResultTitle" style="font-family: var(--font-display); font-size: 24px; font-weight: 700;">VICTORY!</div>
+      <div id="modalResultSubtitle" style="font-size: 13px; color: var(--text-muted); margin-bottom: 18px;">Match concluded</div>
+      <div style="display: flex; gap: 10px;">
+        <button id="btnModalPlayAgain" class="btn btn-primary">Play Again</button>
+        <button id="btnModalClose" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHALLENGE INVITATION MODAL -->
+  <div id="modalChallengePrompt" class="modal-backdrop">
+    <div class="modal-card">
+      <div style="font-size: 44px; margin-bottom: 8px;">⚔️</div>
+      <div style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">Match Challenge!</div>
+      <div id="challengeModalDesc" style="font-size: 13px; color: var(--text-muted); margin-bottom: 18px;">Incoming invitation...</div>
+      <div style="display: flex; gap: 10px;">
+        <button id="btnAcceptChallenge" class="btn btn-primary">Accept</button>
+        <button id="btnRejectChallenge" class="btn btn-danger">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOCAL PLAYER NAMES MODAL -->
+  <div id="modalLocalSetup" class="modal-backdrop">
+    <div class="modal-card">
+      <div style="font-size: 44px; margin-bottom: 8px;">👥</div>
+      <div style="font-family: var(--font-display); font-size: 22px; font-weight: 700;">Local Match</div>
+      <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">Enter names for both players</div>
+      <input type="text" id="inputLocalPlayerX" class="form-input" placeholder="Player X Name" maxlength="15" value="Player 1" />
+      <input type="text" id="inputLocalPlayerO" class="form-input" placeholder="Player O Name" maxlength="15" value="Player 2" />
+      <div style="display: flex; gap: 10px;">
+        <button id="btnStartLocalMatch" class="btn btn-primary">Start Match</button>
+        <button id="btnCancelLocalSetup" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION ENGINE JAVASCRIPT -->
+  <script>
+    window.XO_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyADC-0YI3R46VMkGEnUQqNAk79g-QFfEDE",
+      authDomain: "xo-arena-16ccf.firebaseapp.com",
+      databaseURL: "https://xo-arena-16ccf-default-rtdb.firebaseio.com",
+      projectId: "xo-arena-16ccf",
+      storageBucket: "xo-arena-16ccf.firebasestorage.app",
+      messagingSenderId: "344252132891",
+      appId: "1:344252132891:web:dc839e5e13c5820b9f52be"
+    };
+
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContextClass();
+        }
+      }
+      playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.15) {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      }
+      playMove(player) {
+        this.playTone(player === 'X' ? 520 : 380, 'sine', 0.12, 0.2);
+      }
+      playWin() {
+        if (!this.enabled) return;
+        [440, 554, 659, 880].forEach((freq, idx) => {
+          setTimeout(() => this.playTone(freq, 'triangle', 0.25, 0.2), idx * 100);
+        });
+      }
+      playDraw() {
+        if (!this.enabled) return;
+        [350, 310, 270].forEach((freq, idx) => {
+          setTimeout(() => this.playTone(freq, 'sawtooth', 0.18, 0.12), idx * 90);
+        });
+      }
+    }
+
+    class HapticsEngine {
+      constructor() { this.enabled = true; }
+      trigger(pattern = 30) {
+        if (!this.enabled || !('vibrate' in navigator)) return;
+        try { navigator.vibrate(pattern); } catch (e) {}
+      }
+    }
+
+    class StorageController {
+      constructor() { this.PREFIX = 'XO_ARENA_'; }
+      get(key, fallback = null) {
+        try {
+          const item = localStorage.getItem(this.PREFIX + key);
+          return item ? JSON.parse(item) : fallback;
+        } catch (e) { return fallback; }
+      }
+      set(key, value) {
+        try {
+          const serialized = JSON.stringify(value);
+          localStorage.setItem(this.PREFIX + key, serialized);
+          if (key === 'player_profile' && window.app?.currentUser?.uid) {
+            localStorage.setItem(this.PREFIX + 'player_profile_uid_' + window.app.currentUser.uid, serialized);
+          }
+        } catch (e) {}
+      }
+      clearAll() {
+        try {
+          Object.keys(localStorage).forEach(k => {
+            if (k.startsWith(this.PREFIX)) localStorage.removeItem(k);
+          });
+        } catch (e) {}
+      }
+    }
+
+    class ProgressionManager {
+      constructor(storage) {
+        this.storage = storage;
+        this.achievementsList = [
+          { id: 'first_win', name: 'First Blood', desc: 'Win your first match', icon: '🎯' },
+          { id: 'win_streak_3', name: 'Hot Streak', desc: 'Reach a win streak of 3 matches', icon: '🔥' },
+          { id: 'five_wins', name: 'Veteran Competitor', desc: 'Accumulate 5 total wins', icon: '⚔️' },
+          { id: 'first_draw', name: 'Stalemate Master', desc: 'Conclude a match in a draw', icon: '🤝' },
+          { id: 'beat_hard_ai', name: 'Cyber Conqueror', desc: 'Defeat the Hard Minimax AI', icon: '🤖' }
+        ];
+      }
+      calculateLevel(xp) { return Math.floor(Math.sqrt(xp / 50)) + 1; }
+      getXpProgress(xp) {
+        const currentLevel = this.calculateLevel(xp);
+        const prevLevelXp = 50 * Math.pow(currentLevel - 1, 2);
+        const nextLevelXp = 50 * Math.pow(currentLevel, 2);
+        const progress = ((xp - prevLevelXp) / (nextLevelXp - prevLevelXp)) * 100;
+        return { level: currentLevel, progress: Math.min(Math.max(progress, 0), 100) };
+      }
+      awardMatchXP(result, mode) {
+        let earned = 10;
+        if (result === 'win') earned += 40;
+        if (result === 'draw') earned += 15;
+        if (mode === 'computer_hard') earned += 20;
+        const profile = this.storage.get('player_profile', { xp: 0 });
+        profile.xp = (profile.xp || 0) + earned;
+        this.storage.set('player_profile', profile);
+        return earned;
+      }
+      checkAchievements(stats, matchInfo) {
+        const unlocked = this.storage.get('unlocked_achievements', []);
+        const newlyUnlocked = [];
+        if (stats.wins >= 1 && !unlocked.includes('first_win')) newlyUnlocked.push('first_win');
+        if (stats.streak >= 3 && !unlocked.includes('win_streak_3')) newlyUnlocked.push('win_streak_3');
+        if (stats.wins >= 5 && !unlocked.includes('five_wins')) newlyUnlocked.push('five_wins');
+        if (stats.draws >= 1 && !unlocked.includes('first_draw')) newlyUnlocked.push('first_draw');
+        if (matchInfo.mode === 'computer' && matchInfo.difficulty === 'hard' && matchInfo.result === 'win' && !unlocked.includes('beat_hard_ai')) {
+          newlyUnlocked.push('beat_hard_ai');
+        }
+        if (newlyUnlocked.length > 0) {
+          this.storage.set('unlocked_achievements', [...unlocked, ...newlyUnlocked]);
+        }
+        return newlyUnlocked;
+      }
+    }
+
+    class GameAI {
+      static getWinningLines() {
+        return [
+          [0,1,2], [3,4,5], [6,7,8],
+          [0,3,6], [1,4,7], [2,5,8],
+          [0,4,8], [2,4,6]
+        ];
+      }
+      static getAvailableMoves(board) {
+        const moves = [];
+        for (let i = 0; i < 9; i++) if (!board[i]) moves.push(i);
+        return moves;
+      }
+      static checkWinner(b) {
+        const lines = this.getWinningLines();
+        for (let [a, c, d] of lines) {
+          if (b[a] && b[a] === b[c] && b[a] === b[d]) return { winner: b[a], line: [a, c, d] };
+        }
+        if (b.every(cell => cell !== null)) return { winner: 'draw', line: [] };
+        return null;
+      }
+      static getEasyMove(board) {
+        const avail = this.getAvailableMoves(board);
+        return avail[Math.floor(Math.random() * avail.length)];
+      }
+      static getClassicMove(board, aiSymbol = 'O', humanSymbol = 'X') {
+        const avail = this.getAvailableMoves(board);
+        for (let move of avail) {
+          const testBoard = [...board];
+          testBoard[move] = aiSymbol;
+          if (this.checkWinner(testBoard)?.winner === aiSymbol) return move;
+        }
+        for (let move of avail) {
+          const testBoard = [...board];
+          testBoard[move] = humanSymbol;
+          if (this.checkWinner(testBoard)?.winner === humanSymbol) return move;
+        }
+        if (avail.includes(4)) return 4;
+        const corners = [0, 2, 6, 8].filter(c => avail.includes(c));
+        if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
+        return avail[Math.floor(Math.random() * avail.length)];
+      }
+      static getHardMove(board, aiSymbol = 'O', humanSymbol = 'X') {
+        let bestScore = -Infinity;
+        let bestMove = null;
+        const avail = this.getAvailableMoves(board);
+        if (avail.length === 9) return 4;
+        if (avail.length === 8 && avail.includes(4)) return 4;
+        for (let move of avail) {
+          board[move] = aiSymbol;
+          let score = this.minimax(board, 0, false, -Infinity, Infinity, aiSymbol, humanSymbol);
+          board[move] = null;
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = move;
+          }
+        }
+        return bestMove !== null ? bestMove : avail[0];
+      }
+      static minimax(board, depth, isMaximizing, alpha, beta, aiSymbol, humanSymbol) {
+        const result = this.checkWinner(board);
+        if (result) {
+          if (result.winner === aiSymbol) return 10 - depth;
+          if (result.winner === humanSymbol) return depth - 10;
+          if (result.winner === 'draw') return 0;
+        }
+        const avail = this.getAvailableMoves(board);
+        if (isMaximizing) {
+          let maxEval = -Infinity;
+          for (let move of avail) {
+            board[move] = aiSymbol;
+            let evaluation = this.minimax(board, depth + 1, false, alpha, beta, aiSymbol, humanSymbol);
+            board[move] = null;
+            maxEval = Math.max(maxEval, evaluation);
+            alpha = Math.max(alpha, evaluation);
+            if (beta <= alpha) break;
+          }
+          return maxEval;
+        } else {
+          let minEval = Infinity;
+          for (let move of avail) {
+            board[move] = humanSymbol;
+            let evaluation = this.minimax(board, depth + 1, true, alpha, beta, aiSymbol, humanSymbol);
+            board[move] = null;
+            minEval = Math.min(minEval, evaluation);
+            beta = Math.min(beta, evaluation);
+            if (beta <= alpha) break;
+          }
+          return minEval;
+        }
+      }
+    }
+
+    class GameEngine {
+      constructor(callbacks) {
+        this.board = Array(9).fill(null);
+        this.currentTurn = 'X';
+        this.isGameOver = false;
+        this.moveHistory = [];
+        this.callbacks = callbacks;
+      }
+      reset() {
+        this.board = Array(9).fill(null);
+        this.currentTurn = 'X';
+        this.isGameOver = false;
+        this.moveHistory = [];
+        if (this.callbacks.onReset) this.callbacks.onReset();
+      }
+      makeMove(index, player = this.currentTurn) {
+        if (this.isGameOver || this.board[index] !== null) return false;
+        this.board[index] = player;
+        this.moveHistory.push({ index, player });
+        if (this.callbacks.onMove) this.callbacks.onMove(index, player, this.board);
+        const outcome = GameAI.checkWinner(this.board);
+        if (outcome) {
+          this.isGameOver = true;
+          if (outcome.winner === 'draw') {
+            if (this.callbacks.onDraw) this.callbacks.onDraw();
+          } else {
+            if (this.callbacks.onWin) this.callbacks.onWin(outcome.winner, outcome.line);
+          }
+          return true;
+        }
+        this.currentTurn = this.currentTurn === 'X' ? 'O' : 'X';
+        return true;
+      }
+      undo() {
+        if (this.moveHistory.length === 0 || this.isGameOver) return null;
+        const last = this.moveHistory.pop();
+        this.board[last.index] = null;
+        this.currentTurn = last.player;
+        return last;
+      }
+    }
+
+    class XOArenaApp {
+      constructor() {
+        this.storage = new StorageController();
+        this.sound = new SoundEngine();
+        this.haptics = new HapticsEngine();
+        this.progression = new ProgressionManager(this.storage);
+
+        this.currentTab = 'screenHome';
+        this.gameMode = 'computer';
+        this.aiDifficulty = 'classic';
+        this.playerNames = { X: 'Player X', O: 'Computer' };
+        this.scores = { X: 0, O: 0, draws: 0 };
+        this.currentUser = null;
+        this.activeOnlineMatchId = null;
+        this.onlineMatchListener = null;
+        this.authMode = 'signin';
+        this.onlinePlayersListener = null;
+        this.leaderboardListener = null;
+        this.presenceListener = null;
+        this.incomingChallengeListener = null;
+        this.senderChallengeListener = null;
+        this.matchQueueListener = null;
+        this.queueCollectionListener = null;
+        this.chatListener = null;
+        this.presenceHeartbeat = null;
+        this.completedOnlineMatchIds = new Set();
+        this.matchConclusionHandled = false;
+        this.matchmakingTimer = null;
+        this.matchmakingDeadline = null;
+        this.lastOnlineBoard = null;
+        this.lastOnlineRound = null;
+
+        this.initDOM();
+        this.initSettingsAndThemes();
+        this.initGameEngine();
+        this.initEvents();
+        // Keep the auth gate visible until Firebase confirms the persisted session.
+        this.dom.modalWelcomeAuth.classList.add('active');
+        this.initFirebase();
+        this.renderStatsAndProfile();
+        this.renderHistory();
+      }
+
+      initDOM() {
+        this.dom = {
+          cells: document.querySelectorAll('.board-cell'),
+          turnIndicator: document.getElementById('turnIndicatorBadge'),
+          hudPlayerX: document.getElementById('hudPlayerXName'),
+          hudPlayerO: document.getElementById('hudPlayerOName'),
+          hudScoreX: document.getElementById('hudScoreX'),
+          hudScoreO: document.getElementById('hudScoreO'),
+          aiDiffSelector: document.getElementById('aiDifficultySelector'),
+          diffPills: document.querySelectorAll('.pill-tab'),
+          modalResult: document.getElementById('modalResult'),
+          modalResultTitle: document.getElementById('modalResultTitle'),
+          modalResultSubtitle: document.getElementById('modalResultSubtitle'),
+          modalResultIcon: document.getElementById('modalResultIcon'),
+          toastContainer: document.getElementById('toastContainer'),
+          onlineChatSection: document.getElementById('onlineChatSection'),
+          chatForm: document.getElementById('chatForm'),
+          chatInput: document.getElementById('chatInputText'),
+          chatMessages: document.getElementById('chatMessageList'),
+          modalWelcomeAuth: document.getElementById('modalWelcomeAuth'),
+          tabBtnSignIn: document.getElementById('tabBtnSignIn'),
+          tabBtnRegister: document.getElementById('tabBtnRegister'),
+          registerExtraFields: document.getElementById('registerExtraFields'),
+          authSubtitle: document.getElementById('authSubtitle'),
+          btnSubmitAuth: document.getElementById('btnSubmitAuth'),
+          authInputFullName: document.getElementById('authInputFullName'),
+          authInputUsername: document.getElementById('authInputUsername'),
+          authInputEmail: document.getElementById('authInputEmail'),
+          authInputPassword: document.getElementById('authInputPassword'),
+          btnAuthContinueGuest: document.getElementById('btnAuthContinueGuest')
+        };
+      }
+
+      toast(message, type = 'info') {
+        const t = document.createElement('div');
+        t.className = 'toast';
+        t.innerHTML = `<span>${type === 'error' ? '⚠️' : '✨'}</span> <span>${message}</span>`;
+        this.dom.toastContainer.appendChild(t);
+        setTimeout(() => {
+          t.style.opacity = '0';
+          t.style.transform = 'translateY(-10px)';
+          t.style.transition = 'all 0.25s ease';
+          setTimeout(() => t.remove(), 250);
+        }, 3000);
+      }
+
+      initSettingsAndThemes() {
+        const theme = this.storage.get('theme', 'light');
+        const darkOn = this.storage.get('dark_mode', false);
+        const soundOn = this.storage.get('sound', true);
+        const hapticsOn = this.storage.get('haptics', true);
+
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-dark', darkOn ? 'true' : 'false');
+        document.getElementById('selectAppTheme').value = theme;
+        document.getElementById('toggleDarkMode').checked = darkOn;
+        document.getElementById('toggleSoundFx').checked = soundOn;
+        document.getElementById('toggleHaptics').checked = hapticsOn;
+
+        this.sound.enabled = soundOn;
+        this.haptics.enabled = hapticsOn;
+
+        let profile = this.storage.get('player_profile', null);
+        if (!profile) {
+          const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+          profile = {
+            displayName: 'Player',
+            username: 'PB_PLAYER_' + randomSuffix,
+            avatarUrl: null,
+            xp: 0,
+            matches: 0,
+            wins: 0,
+            aiWins: 0,
+            losses: 0,
+            draws: 0,
+            streak: 0,
+            bestStreak: 0
+          };
+          this.storage.set('player_profile', profile);
+        }
+        document.getElementById('inputEditDisplayName').value = profile.displayName || '';
+        document.getElementById('inputEditUsername').value = profile.username || '';
+      }
+
+      initGameEngine() {
+        this.engine = new GameEngine({
+          onMove: (idx, player) => {
+            const cell = this.dom.cells[idx];
+            cell.textContent = player;
+            cell.classList.add(player === 'X' ? 'cell-x' : 'cell-o', 'taken');
+            this.sound.playMove(player);
+            this.haptics.trigger(25);
+            this.updateHUDTurn();
+          },
+          onWin: (winner, line) => {
+            line.forEach(i => this.dom.cells[i].classList.add('win-highlight'));
+            this.sound.playWin();
+            this.haptics.trigger([50, 50, 100]);
+            this.handleMatchConclusion('win', winner);
+          },
+          onDraw: () => {
+            this.sound.playDraw();
+            this.haptics.trigger(60);
+            this.handleMatchConclusion('draw', null);
+          },
+          onReset: () => {
+            this.dom.cells.forEach(c => {
+              c.textContent = '';
+              c.className = 'board-cell';
+            });
+            this.updateHUDTurn();
+          }
+        });
+      }
+
+      updateHUDTurn() {
+        const turn = this.engine.currentTurn;
+        this.dom.turnIndicator.textContent = `${this.playerNames[turn]} (${turn})`;
+        this.dom.turnIndicator.style.color = turn === 'X' ? 'var(--player-x)' : 'var(--player-o)';
+      }
+
+      initEvents() {
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tabId = btn.getAttribute('data-tab');
+            this.switchTab(tabId);
+          });
+        });
+
+        document.getElementById('headerThemeBtn').addEventListener('click', () => {
+          const themes = ['light', 'neon', 'black', 'ocean', 'emerald', 'crimson'];
+          const cur = document.documentElement.getAttribute('data-theme') || 'light';
+          const next = themes[(themes.indexOf(cur) + 1) % themes.length];
+          this.setTheme(next);
+        });
+
+        document.getElementById('selectAppTheme').addEventListener('change', (e) => this.setTheme(e.target.value));
+        document.getElementById('toggleDarkMode').addEventListener('change', (e) => {
+          document.documentElement.setAttribute('data-dark', e.target.checked ? 'true' : 'false');
+          this.storage.set('dark_mode', e.target.checked);
+        });
+        document.getElementById('toggleSoundFx').addEventListener('change', (e) => {
+          this.sound.enabled = e.target.checked;
+          this.storage.set('sound', e.target.checked);
+        });
+        document.getElementById('toggleHaptics').addEventListener('change', (e) => {
+          this.haptics.enabled = e.target.checked;
+          this.storage.set('haptics', e.target.checked);
+        });
+
+        this.dom.cells.forEach(cell => {
+          cell.addEventListener('click', () => {
+            const idx = parseInt(cell.getAttribute('data-idx'), 10);
+            this.handleCellClick(idx);
+          });
+        });
+
+        document.getElementById('btnRestartGame').addEventListener('click', () => {
+          if (this.gameMode === 'online' && this.activeOnlineMatchId) this.requestOnlineRestart();
+          else { this.matchConclusionHandled = false; this.engine.reset(); }
+        });
+        document.getElementById('btnUndoMove').addEventListener('click', () => {
+          if (this.gameMode === 'online') {
+            this.toast('Undo is not permitted in online matches', 'error');
+            return;
+          }
+          if (this.gameMode === 'computer') {
+            this.engine.undo();
+            this.engine.undo();
+          } else {
+            this.engine.undo();
+          }
+          this.engine.callbacks.onReset();
+          this.engine.board.forEach((val, i) => {
+            if (val) {
+              this.dom.cells[i].textContent = val;
+              this.dom.cells[i].classList.add(val === 'X' ? 'cell-x' : 'cell-o', 'taken');
+            }
+          });
+        });
+
+        document.getElementById('btnLeaveArena').addEventListener('click', () => this.gameMode === 'online' ? this.exitOnlineMatch() : this.switchTab('screenHome'));
+
+        document.getElementById('btnLaunchComputer').addEventListener('click', () => this.startComputerMatch());
+        document.getElementById('btnLaunchLocal').addEventListener('click', () => {
+          document.getElementById('modalLocalSetup').classList.add('active');
+        });
+        document.getElementById('btnCancelLocalSetup').addEventListener('click', () => {
+          document.getElementById('modalLocalSetup').classList.remove('active');
+        });
+        document.getElementById('btnStartLocalMatch').addEventListener('click', () => {
+          const xName = document.getElementById('inputLocalPlayerX').value.trim() || 'Player 1';
+          const oName = document.getElementById('inputLocalPlayerO').value.trim() || 'Player 2';
+          document.getElementById('modalLocalSetup').classList.remove('active');
+          this.startLocalMatch(xName, oName);
+        });
+
+        document.getElementById('btnLaunchOnlineTab').addEventListener('click', () => this.switchTab('screenOnline'));
+
+        this.dom.diffPills.forEach(pill => {
+          pill.addEventListener('click', () => {
+            this.dom.diffPills.forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            this.aiDifficulty = pill.getAttribute('data-diff');
+            this.toast(`AI Difficulty: ${this.aiDifficulty.toUpperCase()}`);
+            this.engine.reset();
+          });
+        });
+
+        document.getElementById('btnModalPlayAgain').addEventListener('click', () => {
+          this.dom.modalResult.classList.remove('active');
+          if (this.gameMode === 'online' && this.activeOnlineMatchId) {
+            this.requestOnlineRestart();
+            return;
+          }
+          this.matchConclusionHandled = false;
+          this.engine.reset();
+        });
+        document.getElementById('btnModalClose').addEventListener('click', () => {
+          this.dom.modalResult.classList.remove('active');
+        });
+
+        document.getElementById('inputAvatarFile').addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          if (file.size > 1024 * 1024) {
+            this.toast('Image size should be less than 1MB', 'error');
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64Img = event.target.result;
+            const prof = this.storage.get('player_profile');
+            prof.avatarUrl = base64Img;
+            this.storage.set('player_profile', prof);
+            this.renderStatsAndProfile();
+            if (this.currentUser) this.syncOnlineProfile();
+            this.toast('Profile picture updated!');
+          };
+          reader.readAsDataURL(file);
+        });
+
+        document.getElementById('btnSaveProfileDetails').addEventListener('click', async () => {
+          const name = document.getElementById('inputEditDisplayName').value.trim();
+          const username = document.getElementById('inputEditUsername').value.trim().replace(/[^a-zA-Z0-9_]/g, '');
+
+          if (name.length < 2) {
+            this.toast('Name must be at least 2 characters', 'error');
+            return;
+          }
+          if (username.length < 3) {
+            this.toast('Username must be at least 3 characters', 'error');
+            return;
+          }
+
+          if (this.currentUser && this.fbDb) {
+            const mod = window.FBASE_MOD;
+            const q = mod.query(mod.collection(this.fbDb, 'users'), mod.where('username', '==', username));
+            const snap = await mod.getDocs(q);
+            let isTaken = false;
+            snap.forEach(d => {
+              if (d.id !== this.currentUser.uid) isTaken = true;
+            });
+            if (isTaken) {
+              this.toast('Username already taken! Choose another.', 'error');
+              return;
+            }
+          }
+
+          const prof = this.storage.get('player_profile');
+          prof.displayName = name;
+          prof.username = username;
+          this.storage.set('player_profile', prof);
+          this.renderStatsAndProfile();
+          if (this.currentUser) this.syncOnlineProfile();
+          this.toast('Profile updated successfully!');
+        });
+
+        document.getElementById('btnClearLocalHistory').addEventListener('click', () => {
+          this.storage.set('match_history', []);
+          this.renderHistory();
+          this.toast('Local history cleared');
+        });
+
+        document.getElementById('btnResetLocalData').addEventListener('click', async () => {
+          if (confirm('Reset ALL your game stats, Level, history and block list? This cannot be undone. Your sign-in account will remain the same.')) {
+            try {
+              if (this.currentUser && this.fbDb) {
+                const mod = window.FBASE_MOD;
+                await mod.setDoc(mod.doc(this.fbDb, 'users', this.currentUser.uid), {
+                  aiWins: 0, wins: 0, losses: 0, draws: 0, xp: 0, matches: 0,
+                  onlineWins: 0, onlineLosses: 0, onlineDraws: 0, onlineMatches: 0, onlineStreak: 0,
+                  level: 1, streak: 0, bestStreak: 0, blockedUids: [], resetAt: mod.serverTimestamp()
+                }, { merge: true });
+              }
+            } catch (e) {
+              this.toast('Could not reset cloud stats. Please try again.', 'error');
+              return;
+            }
+            this.storage.clearAll();
+            window.location.reload();
+          }
+        });
+
+        document.getElementById('btnSendDirectChallenge').addEventListener('click', async () => {
+          const username = document.getElementById('directChallengeInput').value.trim().replace('@', '');
+          if (username.length < 3) {
+            this.toast('Please enter a valid Username', 'error');
+            return;
+          }
+          await this.sendDirectChallengeByUsername(username);
+        });
+
+        document.getElementById('btnQuickMatch').addEventListener('click', () => this.startOnlineMatchmaking());
+        document.getElementById('btnRefreshPlayers').addEventListener('click', async (e) => { const b=e.currentTarget; b.disabled=true; b.style.opacity='.55'; try { await this.loadOnlinePlayers(); this.toast('Online players refreshed'); } finally { setTimeout(()=>{b.disabled=false;b.style.opacity='1';},350); } });
+
+        this.dom.tabBtnSignIn.addEventListener('click', () => {
+          this.authMode = 'signin';
+          this.dom.tabBtnSignIn.classList.add('active');
+          this.dom.tabBtnRegister.classList.remove('active');
+          this.dom.registerExtraFields.style.display = 'none';
+          this.dom.authSubtitle.textContent = 'Sign in with Email to continue';
+          this.dom.btnSubmitAuth.textContent = 'Sign In';
+        });
+
+        this.dom.tabBtnRegister.addEventListener('click', () => {
+          this.authMode = 'register';
+          this.dom.tabBtnRegister.classList.add('active');
+          this.dom.tabBtnSignIn.classList.remove('active');
+          this.dom.registerExtraFields.style.display = 'block';
+          this.dom.authSubtitle.textContent = 'Create your account to join the arena';
+          this.dom.btnSubmitAuth.textContent = 'Create Account';
+        });
+
+        this.dom.btnSubmitAuth.addEventListener('click', async () => {
+          if (this.authMode === 'signin') {
+            await this.handleEmailSignIn();
+          } else {
+            await this.handleEmailRegister();
+          }
+        });
+
+        this.dom.btnAuthContinueGuest.addEventListener('click', async () => {
+          await this.loginAsGuest();
+        });
+      }
+
+      setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        this.storage.set('theme', theme);
+        document.getElementById('selectAppTheme').value = theme;
+      }
+
+      switchTab(tabId) {
+        document.querySelectorAll('.tab-screen').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => {
+          b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
+        });
+        const target = document.getElementById(tabId);
+        if (target) {
+          target.classList.add('active');
+          this.currentTab = tabId;
+        }
+      }
+
+      startComputerMatch() {
+        this.matchConclusionHandled = false;
+        this.gameMode = 'computer';
+        const prof = this.storage.get('player_profile');
+        this.playerNames = { X: prof.displayName || 'Player', O: 'XO Bot' };
+        this.scores = { X: 0, O: 0, draws: 0 };
+        this.dom.hudPlayerX.textContent = this.playerNames.X;
+        this.dom.hudPlayerO.textContent = this.playerNames.O;
+        this.dom.hudScoreX.textContent = '0';
+        this.dom.hudScoreO.textContent = '0';
+        this.dom.aiDiffSelector.style.display = 'flex';
+        this.dom.onlineChatSection.style.display = 'none';
+        this.engine.reset();
+        this.switchTab('screenArena');
+      }
+
+      startLocalMatch(nameX, nameO) {
+        this.matchConclusionHandled = false;
+        this.gameMode = 'local';
+        this.playerNames = { X: nameX, O: nameO };
+        this.scores = { X: 0, O: 0, draws: 0 };
+        this.dom.hudPlayerX.textContent = nameX;
+        this.dom.hudPlayerO.textContent = nameO;
+        this.dom.hudScoreX.textContent = '0';
+        this.dom.hudScoreO.textContent = '0';
+        this.dom.aiDiffSelector.style.display = 'none';
+        this.dom.onlineChatSection.style.display = 'none';
+        this.engine.reset();
+        this.switchTab('screenArena');
+      }
+
+      handleCellClick(idx) {
+        if (this.gameMode === 'computer') {
+          if (this.engine.currentTurn !== 'X' || this.engine.isGameOver) return;
+          const moved = this.engine.makeMove(idx, 'X');
+          if (moved && !this.engine.isGameOver) {
+            setTimeout(() => this.executeAIMove(), 300);
+          }
+        } else if (this.gameMode === 'local') {
+          this.engine.makeMove(idx);
+        } else if (this.gameMode === 'online') {
+          this.handleOnlineMoveRequest(idx);
+        }
+      }
+
+      executeAIMove() {
+        if (this.engine.isGameOver || this.engine.currentTurn !== 'O') return;
+        let aiIdx;
+        if (this.aiDifficulty === 'easy') {
+          aiIdx = GameAI.getEasyMove(this.engine.board);
+        } else if (this.aiDifficulty === 'classic') {
+          aiIdx = GameAI.getClassicMove(this.engine.board, 'O', 'X');
+        } else {
+          aiIdx = GameAI.getHardMove(this.engine.board, 'O', 'X');
+        }
+
+        if (aiIdx !== null && aiIdx !== undefined) {
+          this.engine.makeMove(aiIdx, 'O');
+        }
+      }
+
+      handleMatchConclusion(outcome, winner) {
+        if (this.matchConclusionHandled) return;
+        this.matchConclusionHandled = true;
+        const prof = this.storage.get('player_profile');
+
+        let title, subtitle, icon;
+
+        if (outcome === 'win') {
+          const winnerName = this.playerNames[winner];
+          this.scores[winner]++;
+          this.dom.hudScoreX.textContent = this.scores.X;
+          this.dom.hudScoreO.textContent = this.scores.O;
+
+          if (this.gameMode === 'computer') {
+            if (winner === 'X') {
+              prof.aiWins = (prof.aiWins || 0) + 1;
+              prof.level = Math.min(999, 1 + prof.aiWins);
+              prof.streak = (prof.streak || 0) + 1;
+              prof.bestStreak = Math.max(prof.streak, prof.bestStreak || 0);
+              title = 'VICTORY!';
+              subtitle = 'You outmaneuvered the AI!';
+              icon = '🏆';
+            } else {
+              prof.streak = 0;
+              title = 'DEFEAT';
+              subtitle = 'The AI achieved victory.';
+              icon = '💀';
+            }
+          } else {
+            title = 'MATCH WON!';
+            subtitle = `${winnerName} has won the match!`;
+            icon = '👑';
+          }
+        } else {
+          this.scores.draws++;
+          prof.streak = 0;
+          title = 'DRAW';
+          subtitle = 'Deadlock between equal forces.';
+          icon = '🤝';
+        }
+
+        const earnedXP = this.progression.awardMatchXP(
+          outcome === 'draw' ? 'draw' : (winner === 'X' ? 'win' : 'loss'),
+          this.gameMode === 'computer' ? `computer_${this.aiDifficulty}` : 'local'
+        );
+
+        const matchRecord = {
+          id: 'M_' + Date.now().toString(36),
+          date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          opponent: this.playerNames.O,
+          mode: this.gameMode === 'computer' ? `AI (${this.aiDifficulty})` : (this.gameMode === 'online' ? 'Online Match' : 'Local 2P'),
+          result: outcome === 'draw' ? 'Draw' : (winner === 'X' ? 'Win' : 'Loss'),
+          moves: this.engine.moveHistory.length
+        };
+
+        const history = this.storage.get('match_history', []);
+        history.unshift(matchRecord);
+        if (history.length > 50) history.pop();
+        this.storage.set('match_history', history);
+        this.storage.set('player_profile', prof);
+
+        const unlocked = this.progression.checkAchievements(prof, {
+          mode: this.gameMode,
+          difficulty: this.aiDifficulty,
+          result: outcome === 'draw' ? 'draw' : (winner === 'X' ? 'win' : 'loss')
+        });
+
+        if (unlocked.length > 0) {
+          unlocked.forEach(achId => {
+            const item = this.progression.achievementsList.find(a => a.id === achId);
+            if (item) this.toast(`Achievement: ${item.name}!`);
+          });
+        }
+
+        this.dom.modalResultTitle.textContent = title;
+        this.dom.modalResultSubtitle.textContent = `${subtitle} (+${earnedXP} XP)`;
+        this.dom.modalResultIcon.textContent = icon;
+        this.dom.modalResult.classList.add('active');
+
+        this.renderStatsAndProfile();
+        this.renderHistory();
+
+        if (this.currentUser && this.fbDb) {
+          this.syncOnlineProfile();
+          this.loadLeaderboard();
+        }
+      }
+
+      renderStatsAndProfile() {
+        const prof = this.storage.get('player_profile');
+        if (!prof) return;
+
+        document.getElementById('homePlayerName').textContent = prof.displayName || 'Player';
+        document.getElementById('homePlayerUsername').textContent = `@${prof.username || 'username'}`;
+
+        const homeAvatarEl = document.getElementById('homeAvatar');
+        const profileEditAvatarEl = document.getElementById('profileEditAvatar');
+        if (prof.avatarUrl) {
+          homeAvatarEl.innerHTML = `<img src="${prof.avatarUrl}" alt="Avatar" />`;
+          profileEditAvatarEl.innerHTML = `<img src="${prof.avatarUrl}" alt="Avatar" />`;
+        } else {
+          const initial = (prof.displayName || 'P').charAt(0).toUpperCase();
+          homeAvatarEl.textContent = initial;
+          profileEditAvatarEl.textContent = initial;
+        }
+
+        // Rank level is based on computer wins: every AI win adds exactly one level.
+        const aiWins = Math.max(0, Number(prof.aiWins || 0));
+        const playerLevel = Math.min(999, 1 + aiWins);
+        const xpInfo = this.progression.getXpProgress(prof.xp || 0);
+        document.getElementById('homePlayerLevel').textContent = `LVL ${playerLevel}`;
+        document.getElementById('homeXpFill').style.width = `${xpInfo.progress}%`;
+
+        document.getElementById('statTotalMatches').textContent = Math.max(0, Number(prof.matches || 0));
+        document.getElementById('statWins').textContent = Math.max(0, Number(prof.wins || 0));
+        const onlineMatches = Math.max(0, Number(prof.matches || 0));
+        const onlineWins = Math.max(0, Number(prof.wins || 0));
+        const wr = onlineMatches > 0 ? Math.round((onlineWins / onlineMatches) * 100) : 0;
+        document.getElementById('statWinRate').textContent = `${wr}%`;
+        // Home statistics are online-only; AI practice streak must not leak into them.
+        document.getElementById('statStreak').textContent = Math.max(0, Number(prof.onlineStreak || 0));
+
+        const unlocked = this.storage.get('unlocked_achievements', []);
+        const cont = document.getElementById('achievementsContainer');
+        cont.innerHTML = '';
+        this.progression.achievementsList.forEach(ach => {
+          const isDone = unlocked.includes(ach.id);
+          const d = document.createElement('div');
+          d.className = 'history-item';
+          d.style.opacity = isDone ? '1' : '0.45';
+          d.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 22px;">${ach.icon}</span>
+              <div>
+                <div style="font-size: 13px; font-weight: 700;">${ach.name}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${ach.desc}</div>
+              </div>
+            </div>
+            <span>${isDone ? '✅' : '🔒'}</span>
+          `;
+          cont.appendChild(d);
+        });
+      }
+
+      renderHistory() {
+        const history = this.storage.get('match_history', []);
+        const list = document.getElementById('matchHistoryList');
+        if (history.length === 0) {
+          list.innerHTML = `<div class="empty-state">No matches recorded yet.</div>`;
+          return;
+        }
+
+        list.innerHTML = '';
+        history.slice(0, 15).forEach(m => {
+          const el = document.createElement('div');
+          el.className = 'history-item';
+          const badgeClass = m.result === 'Win' ? 'badge-win' : (m.result === 'Loss' ? 'badge-loss' : 'badge-draw');
+          el.innerHTML = `
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">vs ${m.opponent} (${m.mode})</div>
+              <div style="font-size: 10px; color: var(--text-muted);">${m.date} • ${m.moves} moves</div>
+            </div>
+            <div class="${badgeClass}">${m.result}</div>
+          `;
+          list.appendChild(el);
+        });
+      }
+
+      initFirebase() {
+        const cfg = window.XO_FIREBASE_CONFIG;
+        try {
+          const mod = window.FBASE_MOD;
+          this.fbApp = mod.initializeApp(cfg);
+          this.fbAuth = mod.getAuth(this.fbApp);
+          this.fbDb = mod.getFirestore(this.fbApp);
+          this.fbRtdb = mod.getDatabase(this.fbApp);
+          this.isFirebaseReady = true;
+
+          this.setupFirebaseAuth();
+        } catch (e) {
+          console.error('[XO ARENA] Firebase init error:', e);
+          this.isFirebaseReady = false;
+        }
+      }
+
+      setupFirebaseAuth() {
+        const mod = window.FBASE_MOD;
+        mod.onAuthStateChanged(this.fbAuth, async (user) => {
+          this.cleanupRealtimeListeners();
+          if (user) {
+            this.currentUser = user;
+            const accountProfile = this.storage.get('player_profile_uid_' + user.uid);
+            if (accountProfile) {
+              this.storage.set('player_profile', accountProfile);
+            } else {
+              const suffix = String(user.uid).slice(-6).toUpperCase();
+              this.storage.set('player_profile', {
+                displayName: user.displayName || 'Player', username: 'PB_' + suffix, avatarUrl: null,
+                xp: 0, matches: 0, wins: 0, aiWins: 0, losses: 0, draws: 0,
+                streak: 0, bestStreak: 0, level: 1, blockedUids: []
+              });
+            }
+            this.dom.modalWelcomeAuth.classList.remove('active');
+            this.switchTab('screenHome');
+            document.getElementById('profileAccountType').textContent = user.isAnonymous
+              ? 'Account: Guest Player'
+              : `Account: Verified (${user.email})`;
+            await this.syncOnlineProfile();
+            if (!this.currentUser || this.currentUser.uid !== user.uid) return;
+            this.setupPresenceSystem();
+            this.listenToIncomingChallenges();
+            this.loadOnlinePlayers();
+            this.loadLeaderboard();
+          } else {
+            this.currentUser = null;
+            document.getElementById('profileAccountType').textContent = 'Not Logged In';
+            this.dom.modalWelcomeAuth.classList.add('active');
+            this.switchTab('screenHome');
+            this.gameMode = 'computer';
+            this.activeOnlineMatchId = null;
+            this.dom.onlineChatSection.style.display = 'none';
+          }
+        });
+
+        document.getElementById('btnSignOutAccount').addEventListener('click', async () => {
+          if (this.isFirebaseReady && this.fbAuth) {
+            try {
+              this.cleanupRealtimeListeners();
+              if (this.currentUser && this.fbRtdb) {
+                await mod.set(mod.ref(this.fbRtdb, `/status/${this.currentUser.uid}`), {
+                  isOnline: false, lastSeen: Date.now(), updatedAt: Date.now()
+                }).catch(() => {});
+              }
+              await mod.signOut(this.fbAuth);
+              this.switchTab('screenHome');
+              this.toast('Signed out');
+            } catch (e) { this.toast('Could not sign out. Please try again.', 'error'); }
+          }
+        });
+      }
+
+      cleanupRealtimeListeners() {
+        ['onlinePlayersListener','leaderboardListener','presenceListener','incomingChallengeListener',
+         'senderChallengeListener','matchQueueListener','queueCollectionListener','chatListener','onlineMatchListener']
+          .forEach(key => { if (typeof this[key] === 'function') { try { this[key](); } catch (_) {} } this[key] = null; });
+        if (this.presenceHeartbeat) { clearInterval(this.presenceHeartbeat); this.presenceHeartbeat = null; }
+      }
+
+      async handleEmailSignIn() {
+        const email = this.dom.authInputEmail.value.trim();
+        const pass = this.dom.authInputPassword.value.trim();
+        if (!email || !pass) {
+          this.toast('Please enter email and password', 'error');
+          return;
+        }
+
+        try {
+          const mod = window.FBASE_MOD;
+          await mod.signInWithEmailAndPassword(this.fbAuth, email, pass);
+          this.toast('Welcome back to XO ARENA!');
+        } catch (err) {
+          const code = err.code || '';
+          const friendly = code.includes('user-not-found') || code.includes('invalid-credential') || code.includes('wrong-password')
+            ? 'Account Not Found or password is incorrect. Please Register first or check your details.'
+            : code.includes('invalid-email') ? 'Please enter a valid email address.'
+            : code.includes('too-many-requests') ? 'Too many attempts. Please try again later.'
+            : 'Sign in failed. Please check your internet connection and account details.';
+          this.toast(friendly, 'error');
+        }
+      }
+
+      async handleEmailRegister() {
+        const name = this.dom.authInputFullName.value.trim();
+        const username = this.dom.authInputUsername.value.trim().replace(/[^a-zA-Z0-9_]/g, '');
+        const email = this.dom.authInputEmail.value.trim();
+        const pass = this.dom.authInputPassword.value.trim();
+
+        if (name.length < 2) {
+          this.toast('Please enter your full name', 'error');
+          return;
+        }
+        if (username.length < 3) {
+          this.toast('Please enter a username (at least 3 chars)', 'error');
+          return;
+        }
+        if (!email || pass.length < 6) {
+          this.toast('Password must be at least 6 characters', 'error');
+          return;
+        }
+
+        const mod = window.FBASE_MOD;
+        const q = mod.query(mod.collection(this.fbDb, 'users'), mod.where('username', '==', username));
+        const snap = await mod.getDocs(q);
+        if (!snap.empty) {
+          this.toast('Username already exists! Choose another.', 'error');
+          return;
+        }
+
+        try {
+          const userCred = await mod.createUserWithEmailAndPassword(this.fbAuth, email, pass);
+          await mod.updateProfile(userCred.user, { displayName: name });
+
+          const prof = this.storage.get('player_profile');
+          prof.displayName = name;
+          prof.username = username;
+          this.storage.set('player_profile', prof);
+          this.renderStatsAndProfile();
+
+          this.toast('Account registered successfully!');
+        } catch (err) {
+          const friendly = err.code === 'auth/email-already-in-use' ? 'This email is already registered. Please Sign In.'
+            : err.code === 'auth/weak-password' ? 'Please choose a stronger password (at least 6 characters).'
+            : err.code === 'auth/invalid-email' ? 'Please enter a valid email address.'
+            : 'Account could not be created. Please try again.';
+          this.toast(friendly, 'error');
+        }
+      }
+
+      async loginAsGuest() {
+        const mod = window.FBASE_MOD;
+        try {
+          await mod.signInAnonymously(this.fbAuth);
+          this.toast('Entered Arena as Guest');
+        } catch (err) {
+          this.toast(`Guest Sign-In: ${err.message}`, 'error');
+        }
+      }
+
+      async syncOnlineProfile() {
+        if (!this.currentUser || !this.fbDb) return;
+        const mod = window.FBASE_MOD;
+        const prof = this.storage.get('player_profile');
+        const userRef = mod.doc(this.fbDb, 'users', this.currentUser.uid);
+        try {
+          const snap = await mod.getDoc(userRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            prof.displayName = data.displayName || prof.displayName;
+            prof.username = data.username || prof.username;
+            prof.avatarUrl = data.avatarUrl || prof.avatarUrl;
+            ['xp','aiWins','streak','bestStreak'].forEach(k => {
+              prof[k] = Math.max(Number(prof[k] || 0), Number(data[k] || 0));
+            });
+            prof.matches = Number(data.onlineMatches || 0);
+            prof.wins = Number(data.onlineWins || 0);
+            prof.losses = Number(data.onlineLosses || 0);
+            prof.draws = Number(data.onlineDraws || 0);
+            prof.onlineStreak = Number(data.onlineStreak || 0);
+            prof.blockedUids = Array.isArray(data.blockedUids) ? data.blockedUids : (prof.blockedUids || []);
+            prof.level = Math.max(Number(prof.level || 1), Number(data.level || 1), 1 + Number(prof.aiWins || 0));
+          }
+          this.storage.set('player_profile', prof);
+          await mod.setDoc(userRef, {
+            uid: this.currentUser.uid,
+            displayName: prof.displayName || 'Player',
+            username: prof.username || '',
+            avatarUrl: prof.avatarUrl || null,
+            xp: Number(prof.xp || 0), wins: Number(prof.wins || 0),
+            aiWins: Number(prof.aiWins || 0), level: Math.min(999, 1 + Number(prof.aiWins || 0)),
+            losses: Number(prof.losses || 0), draws: Number(prof.draws || 0),
+            matches: Number(prof.matches || 0),
+            onlineWins: Number(prof.wins || 0), onlineLosses: Number(prof.losses || 0),
+            onlineDraws: Number(prof.draws || 0), onlineMatches: Number(prof.matches || 0),
+            onlineStreak: Number(prof.onlineStreak || 0),
+            blockedUids: Array.isArray(prof.blockedUids) ? prof.blockedUids : [],
+            streak: Number(prof.streak || 0), bestStreak: Number(prof.bestStreak || 0),
+            updatedAt: mod.serverTimestamp(),
+            ...(!snap.exists() ? { createdAt: mod.serverTimestamp() } : {})
+          }, { merge: true });
+          this.renderStatsAndProfile();
+        } catch (e) { console.error('Profile sync error:', e); }
+      }
+
+      setupPresenceSystem() {
+        if (!this.currentUser || !this.fbRtdb) return;
+        const mod = window.FBASE_MOD;
+        const uid = this.currentUser.uid;
+        const statusRef = mod.ref(this.fbRtdb, `/status/${uid}`);
+        const connectedRef = mod.ref(this.fbRtdb, '.info/connected');
+        const writeOnline = async () => {
+          const prof = this.storage.get('player_profile');
+          const now = Date.now();
+          await mod.set(statusRef, {
+            uid, isOnline: true, displayName: prof.displayName || 'Player',
+            username: prof.username || '', avatarUrl: prof.avatarUrl || null,
+            lastSeen: now, updatedAt: now
+          });
+        };
+        this.presenceListener = mod.onValue(connectedRef, async snap => {
+          if (snap.val() !== true || !this.currentUser || this.currentUser.uid !== uid) return;
+          try {
+            await mod.onDisconnect(statusRef).set({ isOnline: false, lastSeen: Date.now(), updatedAt: Date.now() });
+            await writeOnline();
+          } catch (e) { console.warn('Presence update failed:', e); }
+        });
+        this.presenceHeartbeat = setInterval(() => {
+          if (this.currentUser && this.currentUser.uid === uid) writeOnline().catch(() => {});
+        }, 25000);
+      }
+
+      async loadOnlinePlayers() {
+        const listEl = document.getElementById('onlinePlayerList');
+        if (!this.isFirebaseReady || !this.fbRtdb) return;
+        const mod = window.FBASE_MOD;
+        const statusRef = mod.ref(this.fbRtdb, '/status');
+        if (this.onlinePlayersListener) this.onlinePlayersListener();
+        this.onlinePlayersListener = mod.onValue(statusRef, async snapshot => {
+          const val = snapshot.val() || {};
+          const now = Date.now();
+          const online = Object.entries(val).filter(([uid, d]) =>
+            d && d.isOnline === true && (now - Number(d.updatedAt || d.lastSeen || 0)) < 90000
+          );
+          if (!online.length) { listEl.innerHTML = `<div class="empty-state">No other players online right now.</div>`; return; }
+          const verified = await Promise.all(online.map(async ([uid, data]) => {
+            try {
+              const userSnap = await mod.getDoc(mod.doc(this.fbDb, 'users', uid));
+              const profile = userSnap.exists() ? userSnap.data() : {};
+              return { uid, ...data, displayName: profile.displayName || data.displayName || 'Player',
+                username: profile.username || data.username || 'player', avatarUrl: profile.avatarUrl || data.avatarUrl || null };
+            } catch (_) { return null; }
+          }));
+          const players = verified.filter(Boolean);
+          if (!players.length) { listEl.innerHTML = `<div class="empty-state">No other online players found.</div>`; return; }
+          listEl.innerHTML = '';
+          players.forEach(u => {
+            const isMe = u.uid === this.currentUser?.uid;
+            const row = document.createElement('div'); row.className = 'player-row';
+            const info = document.createElement('div'); info.className = 'player-row-info';
+            const dot = document.createElement('div'); dot.className = 'online-dot';
+            let avatar;
+            if (u.avatarUrl) { avatar = document.createElement('img'); avatar.src = u.avatarUrl; avatar.className = 'player-row-avatar'; avatar.alt = ''; }
+            else { avatar = document.createElement('div'); avatar.className = 'player-row-avatar'; avatar.textContent = (u.displayName || 'P').charAt(0).toUpperCase(); }
+            const meta = document.createElement('div');
+            const name = document.createElement('div'); name.style.cssText = 'font-size:13px;font-weight:700;'; name.textContent = u.displayName + (isMe ? ' (YOU)' : '');
+            const username = document.createElement('div'); username.style.cssText = 'font-size:11px;color:var(--text-muted);font-family:monospace;'; username.textContent = '@' + (u.username || 'player');
+            meta.append(name, username); info.append(dot, avatar, meta); row.append(info);
+            const action = document.createElement('div'); action.style.cssText = 'display:flex;gap:5px;';
+            const btn = document.createElement('button'); btn.className = isMe ? 'btn btn-outline' : 'btn btn-secondary';
+            btn.style.cssText = 'padding:6px 10px;font-size:12px;'; btn.textContent = isMe ? 'Active' : 'Challenge'; btn.disabled = isMe;
+            if (!isMe) btn.addEventListener('click', () => this.sendDirectOnlineChallenge(u.uid, u.displayName));
+            action.append(btn);
+            if (!isMe) {
+              const blocked = (this.storage.get('player_profile').blockedUids || []).includes(u.uid);
+              const blockBtn = document.createElement('button'); blockBtn.className = 'btn btn-outline';
+              blockBtn.style.cssText = 'padding:6px 8px;font-size:11px;'; blockBtn.textContent = blocked ? 'Unblock' : 'Block';
+              blockBtn.addEventListener('click', () => this.togglePlayerBlock(u.uid, u.displayName)); action.append(blockBtn);
+            }
+            row.append(action); listEl.append(row);
+          });
+        });
+      }
+
+      async togglePlayerBlock(targetUid, targetName) {
+        if (!this.currentUser || !targetUid) return;
+        const mod = window.FBASE_MOD, uid = this.currentUser.uid;
+        const userRef = mod.doc(this.fbDb, 'users', uid);
+        try {
+          const snap = await mod.getDoc(userRef);
+          const data = snap.exists() ? snap.data() : {};
+          const blocked = Array.isArray(data.blockedUids) ? [...data.blockedUids] : [];
+          const isBlocked = blocked.includes(targetUid);
+          const next = isBlocked ? blocked.filter(id => id !== targetUid) : [...blocked, targetUid];
+          await mod.setDoc(userRef, { blockedUids: next }, { merge: true });
+          const prof = this.storage.get('player_profile'); prof.blockedUids = next; this.storage.set('player_profile', prof);
+          this.toast(isBlocked ? `${targetName} unblocked.` : `${targetName} blocked.`);
+          this.loadOnlinePlayers();
+        } catch (e) { this.toast('Could not update block list. Check Firebase rules.', 'error'); }
+      }
+
+      async sendDirectOnlineChallenge(targetUid, targetName) {
+        if (!this.currentUser || targetUid === this.currentUser.uid) return;
+        const mod = window.FBASE_MOD;
+        const prof = this.storage.get('player_profile');
+        const blocked = Array.isArray(prof.blockedUids) ? prof.blockedUids : [];
+        if (blocked.includes(targetUid)) { this.toast('Unblock this player before sending a challenge.', 'error'); return; }
+        const challengeId = 'CH_' + this.currentUser.uid + '_' + Date.now();
+        const challengeRef = mod.doc(this.fbDb, 'challenges', targetUid);
+        try {
+          if (this.senderChallengeListener) this.senderChallengeListener();
+          this.senderChallengeListener = mod.onSnapshot(challengeRef, snap => {
+            if (!snap.exists()) return;
+            const d = snap.data();
+            if (d.id !== challengeId) return;
+            if (d.status === 'accepted' && d.matchId && !this.activeOnlineMatchId) {
+              if (this.senderChallengeListener) { this.senderChallengeListener(); this.senderChallengeListener = null; }
+              this.joinOnlineMatch(d.matchId, 'X');
+            } else if (d.status === 'rejected') {
+              if (this.senderChallengeListener) { this.senderChallengeListener(); this.senderChallengeListener = null; }
+              this.toast(`${targetName} declined your challenge.`, 'error');
+            }
+          });
+          await mod.setDoc(challengeRef, {
+            id: challengeId, senderUid: this.currentUser.uid, senderName: prof.displayName || 'Player',
+            senderUsername: prof.username || '', targetUid, status: 'pending',
+            createdAt: Date.now(), timestamp: mod.serverTimestamp()
+          });
+          this.toast(`Challenge sent to ${targetName}.`);
+        } catch (e) { if (this.senderChallengeListener) { this.senderChallengeListener(); this.senderChallengeListener = null; } this.toast(`Challenge Error: ${e.message}`, 'error'); }
+      }
+
+      async sendDirectChallengeByUsername(username) {
+        if (!this.currentUser) return;
+        try {
+          const mod = window.FBASE_MOD;
+          const q = mod.query(mod.collection(this.fbDb, 'users'), mod.where('username', '==', username), mod.limit(1));
+          const snap = await mod.getDocs(q);
+          if (snap.empty) { this.toast('Player not found with that username', 'error'); return; }
+          const target = snap.docs[0];
+          if (target.id === this.currentUser.uid) { this.toast('You cannot challenge yourself!', 'error'); return; }
+          await this.sendDirectOnlineChallenge(target.id, target.data().displayName || 'Player');
+        } catch (e) { this.toast(`Search error: ${e.message}`, 'error'); }
+      }
+
+      listenToIncomingChallenges() {
+        if (!this.currentUser) return;
+        const mod = window.FBASE_MOD;
+        const challengeRef = mod.doc(this.fbDb, 'challenges', this.currentUser.uid);
+        if (this.incomingChallengeListener) this.incomingChallengeListener();
+        this.incomingChallengeListener = mod.onSnapshot(challengeRef, snap => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (data.status !== 'pending' || data.senderUid === this.currentUser?.uid || data.id === this.lastPromptedChallengeId) return;
+          // Blocking is directional: only the account that blocked the sender rejects this request.
+          const myBlocks = this.storage.get('player_profile')?.blockedUids || [];
+          if (myBlocks.includes(data.senderUid)) {
+            this.lastPromptedChallengeId = data.id;
+            mod.updateDoc(challengeRef, { status: 'rejected', rejectedAt: mod.serverTimestamp(), rejectionReason: 'recipient_blocked_sender' }).catch(() => {});
+            return;
+          }
+          this.lastPromptedChallengeId = data.id;
+          this.showChallengePrompt(data);
+        });
+      }
+
+      showChallengePrompt(challenge) {
+        document.getElementById('challengeModalDesc').textContent = `${challenge.senderName || 'A player'} (@${challenge.senderUsername || 'player'}) has challenged you!`;
+        const modal = document.getElementById('modalChallengePrompt'); modal.classList.add('active');
+        document.getElementById('btnAcceptChallenge').onclick = async () => {
+          const acceptBtn = document.getElementById('btnAcceptChallenge'); acceptBtn.disabled = true;
+          try {
+            const mod = window.FBASE_MOD;
+            const prof = this.storage.get('player_profile');
+            const challengeRef = mod.doc(this.fbDb, 'challenges', this.currentUser.uid);
+            const matchRef = mod.doc(mod.collection(this.fbDb, 'matches'));
+            const matchId = matchRef.id;
+            await mod.runTransaction(this.fbDb, async tx => {
+              const latest = await tx.get(challengeRef);
+              if (!latest.exists() || latest.data().id !== challenge.id || latest.data().status !== 'pending') throw new Error('This challenge is no longer available.');
+              tx.set(matchRef, {
+                matchId, playerXUid: challenge.senderUid, playerXName: challenge.senderName || 'Player',
+                playerOUid: this.currentUser.uid, playerOName: prof.displayName || 'Player',
+                board: Array(9).fill(null), currentTurn: 'X', status: 'active', winner: null, round: 1, restartRequests: [],
+                createdAt: mod.serverTimestamp()
+              });
+              tx.update(challengeRef, { status: 'accepted', matchId, acceptedAt: mod.serverTimestamp() });
+            });
+            modal.classList.remove('active');
+            this.joinOnlineMatch(matchId, 'O');
+          } catch (e) { this.toast(`Failed to accept: ${e.message}`, 'error'); }
+          finally { acceptBtn.disabled = false; }
+        };
+        document.getElementById('btnRejectChallenge').onclick = async () => {
+          modal.classList.remove('active');
+          try {
+            const mod = window.FBASE_MOD;
+            await mod.updateDoc(mod.doc(this.fbDb, 'challenges', this.currentUser.uid), { status: 'rejected', rejectedAt: mod.serverTimestamp() });
+            this.toast('Challenge declined.');
+          } catch (e) { this.toast('Could not decline challenge.', 'error'); }
+        };
+      }
+
+
+
+      async startOnlineMatchmaking() {
+        if (!this.currentUser) { this.toast('Please sign in to join matchmaking', 'error'); return; }
+        if (!this.isFirebaseReady || !this.fbDb) { this.toast('Online matchmaking is unavailable.', 'error'); return; }
+        if (this.matchmakingInProgress || this.activeOnlineMatchId) return;
+        this.matchmakingInProgress = true;
+        const statusEl = document.getElementById('quickMatchStatus');
+        const mod = window.FBASE_MOD, uid = this.currentUser.uid;
+        const prof = this.storage.get('player_profile');
+        const queueRef = mod.collection(this.fbDb, 'matchmaking_queue');
+        const myQueueRef = mod.doc(this.fbDb, 'matchmaking_queue', uid);
+        const sessionId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${uid}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        let joined = false;
+        let timedOut = false;
+        const queueDeadline = Date.now() + 5000;
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Joining... 5'; }
+        const stopTimer = () => { if (this.matchmakingTimer) { clearInterval(this.matchmakingTimer); this.matchmakingTimer = null; } };
+        const hideStatus = () => { if (statusEl) statusEl.style.display = 'none'; };
+        const cleanupQueueListeners = () => {
+          if (this.matchQueueListener) { this.matchQueueListener(); this.matchQueueListener = null; }
+          if (this.queueCollectionListener) { this.queueCollectionListener(); this.queueCollectionListener = null; }
+        };
+        const join = (matchId, role) => {
+          if (joined) return; joined = true; stopTimer(); cleanupQueueListeners(); hideStatus();
+          this.joinOnlineMatch(matchId, role || 'X');
+        };
+        try {
+          // Never join an old 'matched' document. Every tap creates a fresh queue session.
+          await mod.setDoc(myQueueRef, {
+            uid, sessionId, displayName: prof.displayName || 'Player', username: prof.username || '',
+            status: 'waiting', timestamp: mod.serverTimestamp(), queuedAt: Date.now(), expiresAt: queueDeadline,
+            matchId: null, opponentUid: null, role: null
+          });
+          const tryPair = async () => {
+            const waiting = await mod.getDocs(mod.query(queueRef, mod.where('status', '==', 'waiting'), mod.limit(100)));
+            for (const candidate of waiting.docs) {
+              if (candidate.id === uid) continue;
+              const candidateRef = mod.doc(this.fbDb, 'matchmaking_queue', candidate.id);
+              const matchRef = mod.doc(mod.collection(this.fbDb, 'matches'));
+              const matchId = matchRef.id;
+              const paired = await mod.runTransaction(this.fbDb, async tx => {
+                const [mineSnap, otherSnap] = await Promise.all([tx.get(myQueueRef), tx.get(candidateRef)]);
+                if (!mineSnap.exists() || !otherSnap.exists()) return false;
+                const mine = mineSnap.data(), other = otherSnap.data();
+                if (timedOut || Date.now() >= queueDeadline || mine.status !== 'waiting' || other.status !== 'waiting') return false;
+                if (mine.sessionId !== sessionId || !other.sessionId || other.sessionId === sessionId) return false;
+                if (Number(mine.queuedAt || 0) < Date.now() - 7000 || Number(other.queuedAt || 0) < Date.now() - 7000) return false;
+                if (Number(mine.expiresAt || 0) <= Date.now() || Number(other.expiresAt || 0) <= Date.now()) return false;
+                tx.update(myQueueRef, { status: 'matched', matchId, opponentUid: candidate.id, role: 'O', matchedAt: mod.serverTimestamp() });
+                tx.update(candidateRef, { status: 'matched', matchId, opponentUid: uid, role: 'X', matchedAt: mod.serverTimestamp() });
+                tx.set(matchRef, { matchId, playerXUid: candidate.id, playerXName: other.displayName || 'Player',
+                  playerOUid: uid, playerOName: mine.displayName || prof.displayName || 'Player',
+                  board: Array(9).fill(null), currentTurn: 'X', status: 'active', winner: null, round: 1, restartRequests: [],
+                  createdAt: mod.serverTimestamp() });
+                return true;
+              });
+              if (paired) { join(matchId, 'O'); return true; }
+            }
+            const mineNow = await mod.getDoc(myQueueRef);
+            if (mineNow.exists() && mineNow.data().sessionId === sessionId && mineNow.data().status === 'matched' && mineNow.data().matchId) {
+              const q = mineNow.data(); join(q.matchId, q.role); return true;
+            }
+            return false;
+          };
+          let seconds = 5;
+          this.matchmakingTimer = setInterval(async () => {
+            seconds -= 1;
+            if (statusEl && !joined) statusEl.textContent = `Joining... ${seconds}`;
+            if (seconds <= 0 && !joined) {
+              timedOut = true;
+              stopTimer(); cleanupQueueListeners();
+              if (statusEl) statusEl.textContent = 'No Player Found';
+              try { const mine = await mod.getDoc(myQueueRef); if (mine.exists() && mine.data().sessionId === sessionId && mine.data().status === 'waiting') await mod.deleteDoc(myQueueRef); } catch (_) {}
+              this.toast('No opponent joined within 5 seconds. Tap Quick Match to try again.');
+            }
+          }, 1000);
+          this.matchQueueListener = mod.onSnapshot(myQueueRef, snap => {
+            if (!snap.exists()) return;
+            const q = snap.data();
+            if (q.sessionId === sessionId && q.status === 'matched' && q.matchId) join(q.matchId, q.role);
+          });
+          this.queueCollectionListener = mod.onSnapshot(queueRef, snapshot => {
+            const now = Date.now();
+            const hasOpponent = snapshot.docs.some(d => { const q=d.data()||{}; return d.id !== uid && q.status === 'waiting' && q.sessionId && Number(q.queuedAt||0) >= now-7000 && Number(q.expiresAt||0) > now; });
+            if (hasOpponent && !this.queuePairAttemptRunning && !joined) {
+              this.queuePairAttemptRunning = true;
+              tryPair().catch(e => console.warn('Queue retry:', e)).finally(() => { this.queuePairAttemptRunning = false; });
+            }
+          });
+          await tryPair();
+        } catch (e) {
+          stopTimer(); cleanupQueueListeners(); hideStatus();
+          console.error('Matchmaking error:', e); this.toast(`Quick Match failed: ${e.message}`, 'error');
+        } finally { this.matchmakingInProgress = false; }
+      }
+
+
+      joinOnlineMatch(matchId, mySymbol) {
+        if (!matchId || !this.currentUser) return;
+        if (this.activeOnlineMatchId === matchId && this.gameMode === 'online') return;
+        if (this.onlineMatchListener) this.onlineMatchListener();
+        if (this.chatListener) { this.chatListener(); this.chatListener = null; }
+        this.gameMode = 'online'; this.activeOnlineMatchId = matchId; this.myOnlineSymbol = mySymbol;
+        this.matchConclusionHandled = false;
+        this.lastOnlineBoard = null; this.lastOnlineRound = null;
+        this.dom.aiDiffSelector.style.display = 'none';
+        this.dom.onlineChatSection.style.display = 'flex';
+        this.dom.chatMessages.innerHTML = '';
+        this.dom.chatInput.disabled = false;
+        this.switchTab('screenArena'); this.engine.reset();
+        const mod = window.FBASE_MOD;
+        const matchDocRef = mod.doc(this.fbDb, 'matches', matchId);
+        this.onlineMatchListener = mod.onSnapshot(matchDocRef, snap => {
+          if (!snap.exists()) { this.toast('This match is no longer available.', 'error'); return; }
+          this.syncOnlineBoardState(snap.data());
+        }, err => this.toast(`Match connection error: ${err.message}`, 'error'));
+        this.setupOnlineChat(matchId);
+      }
+
+      syncOnlineBoardState(data) {
+        if (!data) return;
+        if (data.status === 'abandoned') {
+          if (this.activeOnlineMatchId === data.matchId || this.gameMode === 'online') {
+            this.toast(data.exitedBy === this.currentUser?.uid ? 'You left the match.' : 'Opponent left the match.');
+            this.finishOnlineSession();
+          }
+          return;
+        }
+        const roundNo = Number(data.round || 1);
+        if (this.lastOnlineRound !== null && roundNo !== this.lastOnlineRound) {
+          this.matchConclusionHandled = false;
+          this.completedOnlineMatchIds.delete(this.activeOnlineMatchId);
+          this.dom.modalResult.classList.remove('active');
+          this.dom.chatInput.disabled = false;
+          this.dom.chatMessages.innerHTML = '';
+          this.engine.isGameOver = false;
+        }
+        this.lastOnlineRound = roundNo;
+        this.playerNames.X = data.playerXName || 'Player X'; this.playerNames.O = data.playerOName || 'Player O';
+        this.dom.hudPlayerX.textContent = this.playerNames.X; this.dom.hudPlayerO.textContent = this.playerNames.O;
+        if (Array.isArray(data.board)) {
+          if (this.lastOnlineBoard) {
+            data.board.forEach((val, i) => {
+              if (val && !this.lastOnlineBoard[i]) this.sound.playMove(val);
+            });
+          }
+          this.lastOnlineBoard = [...data.board];
+          data.board.forEach((val, i) => {
+            this.engine.board[i] = val || null;
+            const cell = this.dom.cells[i]; cell.textContent = val || '';
+            cell.classList.toggle('taken', !!val);
+            cell.classList.toggle('cell-x', val === 'X'); cell.classList.toggle('cell-o', val === 'O');
+            cell.classList.remove('win-highlight');
+          });
+        }
+        this.engine.currentTurn = data.currentTurn || 'X'; this.updateHUDTurn();
+        if (data.status === 'completed' && !this.matchConclusionHandled) {
+          this.engine.isGameOver = true;
+          this.matchConclusionHandled = true;
+          this.handleOnlineMatchConclusion(data).catch(e => console.error('Online result error:', e));
+        }
+      }
+
+      async requestOnlineRestart() {
+        if (!this.activeOnlineMatchId || !this.currentUser) return;
+        const mod = window.FBASE_MOD;
+        const matchRef = mod.doc(this.fbDb, 'matches', this.activeOnlineMatchId);
+        try {
+          const outcome = await mod.runTransaction(this.fbDb, async tx => {
+            const snap = await tx.get(matchRef);
+            if (!snap.exists()) throw new Error('Match not found.');
+            const d = snap.data();
+            if (![d.playerXUid, d.playerOUid].includes(this.currentUser.uid)) throw new Error('You are not a participant.');
+            if (d.status === 'abandoned') throw new Error('This match has ended.');
+            const requests = Array.isArray(d.restartRequests) ? [...d.restartRequests] : [];
+            if (!requests.includes(this.currentUser.uid)) requests.push(this.currentUser.uid);
+            const bothReady = requests.includes(d.playerXUid) && requests.includes(d.playerOUid);
+            if (bothReady) {
+              tx.update(matchRef, { board: Array(9).fill(null), currentTurn: 'X', status: 'active', winner: null,
+                restartRequests: [], round: Number(d.round || 1) + 1, restartedAt: mod.serverTimestamp() });
+              return 'restarted';
+            }
+            tx.update(matchRef, { restartRequests: requests });
+            return 'waiting';
+          });
+          this.toast(outcome === 'restarted' ? 'New round started for both players!' : 'Restart request sent. Waiting for opponent...');
+        } catch (e) { this.toast(`Restart failed: ${e.message}`, 'error'); }
+      }
+
+      async exitOnlineMatch() {
+        if (!this.activeOnlineMatchId || !this.currentUser) { this.finishOnlineSession(); return; }
+        const mod = window.FBASE_MOD;
+        const matchRef = mod.doc(this.fbDb, 'matches', this.activeOnlineMatchId);
+        try {
+          await mod.runTransaction(this.fbDb, async tx => {
+            const snap = await tx.get(matchRef);
+            if (!snap.exists()) return;
+            const d = snap.data();
+            if (d.status !== 'abandoned' && [d.playerXUid, d.playerOUid].includes(this.currentUser.uid)) {
+              tx.update(matchRef, { status: 'abandoned', winner: null, exitedBy: this.currentUser.uid, endedAt: mod.serverTimestamp() });
+            }
+          });
+        } catch (e) { this.toast(`Exit failed: ${e.message}`, 'error'); return; }
+        this.finishOnlineSession();
+      }
+
+      finishOnlineSession() {
+        if (this.onlineMatchListener) { this.onlineMatchListener(); this.onlineMatchListener = null; }
+        if (this.chatListener) { this.chatListener(); this.chatListener = null; }
+        if (this.currentUser && this.fbDb) {
+          const mod = window.FBASE_MOD;
+          mod.deleteDoc(mod.doc(this.fbDb, 'matchmaking_queue', this.currentUser.uid)).catch(() => {});
+        }
+        this.activeOnlineMatchId = null; this.gameMode = 'computer'; this.lastOnlineBoard = null; this.lastOnlineRound = null;
+        this.dom.onlineChatSection.style.display = 'none'; this.dom.chatInput.disabled = true;
+        this.dom.aiDiffSelector.style.display = 'flex';
+        this.switchTab('screenOnline');
+      }
+
+      async handleOnlineMatchConclusion(data) {
+        const mod = window.FBASE_MOD, uid = this.currentUser?.uid, matchId = this.activeOnlineMatchId;
+        if (!uid || !matchId || this.completedOnlineMatchIds.has(matchId)) return;
+        this.completedOnlineMatchIds.add(matchId);
+        const won = data.winner === this.myOnlineSymbol;
+        const draw = data.winner === 'draw';
+        const prof = this.storage.get('player_profile');
+        const roundNo = Number(data.round || 1);
+        const resultRef = mod.doc(this.fbDb, 'matches', matchId, 'rounds', String(roundNo), 'results', uid);
+        const userRef = mod.doc(this.fbDb, 'users', uid);
+        try {
+          await mod.runTransaction(this.fbDb, async tx => {
+            const resultSnap = await tx.get(resultRef);
+            if (resultSnap.exists()) return;
+            const userSnap = await tx.get(userRef);
+            const u = userSnap.exists() ? userSnap.data() : {};
+            tx.set(resultRef, { uid, result: draw ? 'draw' : (won ? 'win' : 'loss'), recordedAt: mod.serverTimestamp() });
+            tx.set(userRef, {
+              uid, displayName: prof.displayName || 'Player', username: prof.username || '',
+              onlineMatches: Number(u.onlineMatches || 0) + 1,
+              onlineWins: Number(u.onlineWins || 0) + (won ? 1 : 0),
+              onlineLosses: Number(u.onlineLosses || 0) + (!won && !draw ? 1 : 0),
+              onlineDraws: Number(u.onlineDraws || 0) + (draw ? 1 : 0),
+              onlineStreak: won ? Number(u.onlineStreak || 0) + 1 : 0, updatedAt: mod.serverTimestamp()
+            }, { merge: true });
+          });
+          const freshUser = await mod.getDoc(userRef);
+          if (freshUser.exists()) {
+            const cloud = freshUser.data();
+            prof.matches = Number(cloud.onlineMatches || 0);
+            prof.wins = Number(cloud.onlineWins || 0);
+            prof.losses = Number(cloud.onlineLosses || 0);
+            prof.draws = Number(cloud.onlineDraws || 0);
+            prof.onlineStreak = Number(cloud.onlineStreak || 0);
+            this.storage.set('player_profile', prof);
+          }
+        } catch (e) { console.warn('Could not save online result to cloud:', e); }
+        const record = { id: 'M_' + Date.now().toString(36), date: new Date().toLocaleString(),
+          opponent: this.myOnlineSymbol === 'X' ? (data.playerOName || 'Player') : (data.playerXName || 'Player'),
+          mode: 'Online Match', result: draw ? 'Draw' : (won ? 'Win' : 'Loss'), moves: (data.board || []).filter(Boolean).length };
+        const history = this.storage.get('match_history', []); history.unshift(record); this.storage.set('match_history', history.slice(0,50));
+        this.dom.modalResultTitle.textContent = draw ? 'DRAW' : (won ? 'MATCH WON!' : 'MATCH LOST');
+        this.dom.modalResultSubtitle.textContent = draw ? 'A fair match between both players.' : (won ? 'Victory! Well played.' : 'Better luck next time.');
+        this.dom.modalResultIcon.textContent = draw ? '🤝' : (won ? '🏆' : '💪');
+        this.dom.modalResult.classList.add('active');
+        this.renderStatsAndProfile(); this.renderHistory();
+        this.dom.chatInput.disabled = true;
+        this.loadLeaderboard();
+        try { await mod.deleteDoc(mod.doc(this.fbDb, 'matchmaking_queue', uid)); } catch (_) {}
+      }
+
+      async deleteMatchChat(matchId) {
+        try {
+          const mod = window.FBASE_MOD;
+          const messages = await mod.getDocs(mod.collection(this.fbDb, `matches/${matchId}/messages`));
+          if (messages.empty) return;
+          for (let i = 0; i < messages.docs.length; i += 450) {
+            const batch = mod.writeBatch(this.fbDb);
+            messages.docs.slice(i, i + 450).forEach(d => batch.delete(d.ref));
+            await batch.commit();
+          }
+        } catch (e) { console.warn('Match chat cleanup requires Firestore permissions:', e); }
+      }
+
+      async handleOnlineMoveRequest(cellIndex) {
+        if (!this.activeOnlineMatchId || !this.currentUser) return;
+        try {
+          const mod = window.FBASE_MOD;
+          const matchRef = mod.doc(this.fbDb, 'matches', this.activeOnlineMatchId);
+          const moved = await mod.runTransaction(this.fbDb, async tx => {
+            const snap = await tx.get(matchRef);
+            if (!snap.exists()) return false;
+            const data = snap.data();
+            if (data.status !== 'active' || data.currentTurn !== this.myOnlineSymbol || !Array.isArray(data.board) || data.board[cellIndex] !== null) return false;
+            const newBoard = [...data.board];
+            newBoard[cellIndex] = this.myOnlineSymbol;
+            const outcome = GameAI.checkWinner(newBoard);
+            tx.update(matchRef, {
+              board: newBoard,
+              currentTurn: this.myOnlineSymbol === 'X' ? 'O' : 'X',
+              status: outcome ? 'completed' : 'active',
+              winner: outcome ? outcome.winner : null,
+              updatedAt: mod.serverTimestamp()
+            });
+            return true;
+          });
+          if (!moved) this.toast("It's not your turn or that cell is unavailable.", 'error');
+        } catch (e) { this.toast(`Move error: ${e.message}`, 'error'); }
+      }
+
+      setupOnlineChat(matchId) {
+        const mod = window.FBASE_MOD;
+        const chatColl = mod.collection(this.fbDb, `matches/${matchId}/messages`);
+        const q = mod.query(chatColl, mod.orderBy('timestamp', 'asc'), mod.limit(100));
+        if (this.chatListener) this.chatListener();
+        this.chatListener = mod.onSnapshot(q, snapshot => {
+          this.dom.chatMessages.innerHTML = '';
+          snapshot.forEach(docSnap => {
+            const msg = docSnap.data(); const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${msg.senderUid === this.currentUser?.uid ? 'own' : 'opponent'}`;
+            bubble.textContent = msg.text || '';
+            this.dom.chatMessages.appendChild(bubble);
+          });
+          this.dom.chatMessages.scrollTop = this.dom.chatMessages.scrollHeight;
+        }, e => console.warn('Chat listener:', e));
+        this.dom.chatForm.onsubmit = async e => {
+          e.preventDefault();
+          const text = this.dom.chatInput.value.trim();
+          if (!text || text.length > 300 || !this.currentUser || this.dom.chatInput.disabled) return;
+          this.dom.chatInput.value = '';
+          try {
+            const prof = this.storage.get('player_profile');
+            const msgRef = mod.doc(mod.collection(this.fbDb, `matches/${matchId}/messages`));
+            await mod.setDoc(msgRef, { senderUid: this.currentUser.uid, senderName: prof.displayName || 'Player', text, timestamp: mod.serverTimestamp() });
+          } catch (err) { this.toast('Chat failed to send. Please check connection.', 'error'); }
+        };
+      }
+
+      async loadLeaderboard() {
+        const listEl = document.getElementById('leaderboardList');
+        if (!this.isFirebaseReady || !this.fbDb) { listEl.innerHTML = `<div class="empty-state">Leaderboard is unavailable until Firebase connects.</div>`; return; }
+        const mod = window.FBASE_MOD;
+        if (this.leaderboardListener) this.leaderboardListener();
+        try {
+          const usersRef = mod.collection(this.fbDb, 'users');
+          const q = mod.query(usersRef, mod.orderBy('aiWins', 'desc'), mod.limit(100));
+          this.leaderboardListener = mod.onSnapshot(q, snapshot => {
+            // Firestore document ID (UID) is the canonical identity. Also collapse
+            // duplicate legacy/test profiles sharing the same normalized username.
+            const uniquePlayers = new Map();
+            snapshot.forEach(d => {
+              const u = d.data() || {};
+              const uid = String(d.id || '').trim();
+              const usernameKey = String(u.username || '').trim().toLowerCase().replace(/^@/, '');
+              if (!uid || u.disabled === true || u.leaderboardHidden === true) return;
+              // Ignore incomplete placeholder records; only real profile documents qualify.
+              if (!String(u.username || '').trim() || !String(u.displayName || '').trim()) return;
+              const wins = Math.max(0, Number(u.aiWins || 0));
+              const level = Math.min(999, Math.max(1, Number(u.level || 1), 1 + wins));
+              const player = { ...u, uid, aiWins: wins, level };
+              const key = usernameKey || `uid:${uid}`;
+              const prior = uniquePlayers.get(key);
+              if (!prior || level > prior.level || (level === prior.level && uid.localeCompare(prior.uid) < 0)) uniquePlayers.set(key, player);
+            });
+            const players = [...uniquePlayers.values()];
+            // Level only; stable UID tie-breaker. Show at most ten real profile rows.
+            players.sort((a,b) => (Number(b.level || 1) - Number(a.level || 1)) || String(a.uid).localeCompare(String(b.uid)));
+            const topPlayers = players.slice(0, 10);
+            if (!topPlayers.length) { listEl.innerHTML = `<div class="empty-state">No players available yet.</div>`; return; }
+            listEl.innerHTML = '';
+            topPlayers.forEach((u,index) => {
+              const row = document.createElement('div'); row.className = 'leaderboard-item';
+              const left = document.createElement('div'); left.style.cssText = 'display:flex;align-items:center;gap:12px;min-width:0;';
+              const rank = document.createElement('span');
+              rank.style.cssText = 'font-family:var(--font-display);font-weight:800;font-size:20px;width:30px;text-align:center;flex:0 0 30px;';
+              rank.textContent = ['🥇','🥈','🥉'][index] || String(index + 1);
+              let avatar;
+              if (u.avatarUrl) { avatar = document.createElement('img'); avatar.src = u.avatarUrl; avatar.className = 'leaderboard-avatar'; avatar.alt = ''; }
+              else { avatar = document.createElement('div'); avatar.className = 'leaderboard-avatar'; avatar.textContent = (u.displayName || 'P').charAt(0).toUpperCase(); }
+              const info = document.createElement('div'); info.style.minWidth = '0';
+              const name = document.createElement('div'); name.style.cssText = 'font-size:14px;font-weight:700;overflow-wrap:anywhere;'; name.textContent = u.displayName || 'Player';
+              const username = document.createElement('div'); username.style.cssText = 'font-size:11px;color:var(--text-muted);font-family:monospace;overflow-wrap:anywhere;'; username.textContent = '@' + (u.username || 'player');
+              info.append(name, username); left.append(rank, avatar, info);
+              const level = document.createElement('div'); level.style.cssText = 'font-size:14px;font-weight:800;color:var(--accent-primary);white-space:nowrap;margin-left:8px;';
+              level.textContent = `LEVEL ${Number(u.level || 1) >= 999 ? '999+' : String(u.level || 1)}`;
+              row.append(left, level); listEl.appendChild(row);
+            });
+          }, e => { console.error('Leaderboard listener failed:', e); listEl.innerHTML = `<div class="empty-state">Unable to load real player rankings.</div>`; });
+        } catch (e) { console.error('Leaderboard load failed:', e); listEl.innerHTML = `<div class="empty-state">Unable to load real player rankings.</div>`; }
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.app = new XOArenaApp();
+    });
+  </script>
+</body>
+</html>

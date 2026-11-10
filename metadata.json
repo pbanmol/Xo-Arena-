@@ -1,0 +1,6 @@
+{
+  "name": "XO Arena - Competitive Tic Tac Toe & Online Multiplayer",
+  "description": "Next-gen competitive Tic Tac Toe platform featuring Smart AI, Local Pass & Play, and Real-Time Online Multiplayer with Room Codes, Matchmaking, Global Ranks & Chat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

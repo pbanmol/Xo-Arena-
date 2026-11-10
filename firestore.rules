@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // User profiles & stats (Leaderboard & Profile search)
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Matchmaking queue for instant pairing
+    match /matchmaking_queue/{userId} {
+      allow read, write, delete: if isAuthenticated();
+    }
+
+    // 6-digit Private Room codes
+    match /rooms/{roomCode} {
+      allow read, write, delete: if isAuthenticated();
+    }
+
+    // Online Matches (Turn sync, board state, rematches)
+    match /matches/{matchId} {
+      allow read, write, delete: if isAuthenticated();
+
+      // In-match live chat (messages auto-delete when match ends or players exit)
+      match /messages/{messageId} {
+        allow read, write, delete: if isAuthenticated();
+      }
+    }
+
+    // Direct 1v1 challenges
+    match /challenges/{challengeId} {
+      allow read, write, delete: if isAuthenticated();
+    }
+  }
+}
