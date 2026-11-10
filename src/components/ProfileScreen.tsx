@@ -77,9 +77,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               Player Profile
             </h3>
           </div>
-          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-[var(--bg-surface-elevated)] border border-[var(--border-subtle)] text-[var(--accent-primary)]">
-            XO ARENA UID: {profile.numericUid || 1}
-          </span>
+          {profile.isGuest || !profile.numericUid ? (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-500">
+              Guest Mode (No UID)
+            </span>
+          ) : (
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-[var(--bg-surface-elevated)] border border-[var(--border-subtle)] text-[var(--accent-primary)]">
+              XO ARENA UID: {profile.numericUid}
+            </span>
+          )}
         </div>
 
         {/* Avatar preview */}

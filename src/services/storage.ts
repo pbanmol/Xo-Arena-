@@ -41,12 +41,16 @@ export const storage = {
       if (savedUidProfile) return savedUidProfile;
     }
     const profile = this.get<UserProfile | null>('player_profile', null);
-    if (profile) return profile;
+    if (profile) {
+      // If guest, ensure numericUid is removed
+      if (profile.isGuest) {
+        delete profile.numericUid;
+      }
+      return profile;
+    }
 
-    const assignedUid = this.getNextNumericUid();
     const newProfile: UserProfile = {
-      uid: uid || `guest_${Date.now()}`,
-      numericUid: assignedUid,
+      uid: uid || `guest_${Date.now().toString(36)}`,
       displayName: 'Player',
       avatarUrl: null,
       avatarEmoji: '🤖',

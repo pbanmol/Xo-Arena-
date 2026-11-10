@@ -4,12 +4,68 @@ import { UserProfile } from '../types/game';
 interface LeaderboardScreenProps {
   players: UserProfile[];
   currentUid?: string;
+  isGuest?: boolean;
+  onOpenAuth?: () => void;
 }
 
 export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
   players,
-  currentUid
+  currentUid,
+  isGuest,
+  onOpenAuth
 }) => {
+  if (isGuest) {
+    return (
+      <div className="flex flex-col gap-4 animate-in fade-in duration-200">
+        <div
+          className="rounded-3xl border p-6 flex flex-col items-center text-center shadow-lg relative overflow-hidden"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-subtle)'
+          }}
+        >
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-3 shadow-md"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              color: '#fff'
+            }}
+          >
+            🏆🔒
+          </div>
+
+          <h3 className="font-display font-black text-2xl tracking-wider mb-2" style={{ color: 'var(--text-main)' }}>
+            LEADERBOARD LOCKED
+          </h3>
+
+          <p className="text-xs text-slate-400 max-w-sm mb-5 leading-relaxed">
+            गेस्ट प्लेयर्स 100% केवल ऑफलाइन खेलते हैं। ग्लोबल लीडरबोर्ड पर केवल वेरिफाइड ऑनलाइन प्लेयर्स की रैंक शो होती है। टॉप 10 में आने और अपनी परमानेंट <strong className="text-[var(--accent-primary)] font-mono">XO ARENA UID</strong> पाने के लिए ईमेल से साइन इन या रजिस्टर करें!
+          </p>
+
+          <button
+            onClick={onOpenAuth}
+            className="w-full max-w-xs py-3.5 px-6 rounded-xl text-white font-bold text-sm tracking-wide shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            style={{
+              backgroundColor: 'var(--accent-primary)',
+              boxShadow: 'var(--accent-glow)'
+            }}
+          >
+            🔑 Sign In / Register to Join Leaderboard
+          </button>
+
+          <div className="mt-6 pt-5 border-t w-full flex flex-col items-center gap-2" style={{ borderColor: 'var(--border-subtle)' }}>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Offline Play Unlocked
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              You can play <strong>Play with Computer</strong> and <strong>Play with Friend</strong> offline anytime without signing in!
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
       <div
@@ -27,7 +83,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
             </h3>
           </div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Top Competitors
+            Top 10 Competitors
           </span>
         </div>
 

@@ -30,13 +30,12 @@ export const Header: React.FC<HeaderProps> = ({
     >
       <div className="flex items-center gap-2.5">
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-md font-display tracking-wider"
+          className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-md overflow-hidden border border-[var(--border-subtle)]"
           style={{
-            background: 'linear-gradient(135deg, var(--player-x), var(--player-o))',
             boxShadow: 'var(--accent-glow)'
           }}
         >
-          XO
+          <img src="/icon.png" alt="XO Arena" className="w-full h-full object-cover" />
         </div>
         <div>
           <h1 className="font-display font-extrabold text-xl tracking-wider leading-none"

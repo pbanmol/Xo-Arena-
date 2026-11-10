@@ -6,35 +6,43 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // User profiles & stats (Leaderboard & Profile search)
+    function isRegisteredUser() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Public read for registered user profiles & leaderboard
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if true;
+      allow write: if isRegisteredUser() && request.auth.uid == userId;
     }
 
-    // Matchmaking queue for instant pairing
+    // Counters for sequential player UIDs (1, 2, 3...)
+    match /counters/{counterId} {
+      allow read, write: if isRegisteredUser();
+    }
+
+    // Matchmaking queue - registered players only
     match /matchmaking_queue/{userId} {
-      allow read, write, delete: if isAuthenticated();
+      allow read, write, delete: if isRegisteredUser() && request.auth.uid == userId;
     }
 
-    // 6-digit Private Room codes
+    // 6-digit Private Room codes - registered players only
     match /rooms/{roomCode} {
-      allow read, write, delete: if isAuthenticated();
+      allow read, write, delete: if isRegisteredUser();
     }
 
-    // Online Matches (Turn sync, board state, rematches)
+    // Online Matches (Turn sync, board state, rematches) - registered players only
     match /matches/{matchId} {
-      allow read, write, delete: if isAuthenticated();
+      allow read, write, delete: if isRegisteredUser();
 
-      // In-match live chat (messages auto-delete when match ends or players exit)
       match /messages/{messageId} {
-        allow read, write, delete: if isAuthenticated();
+        allow read, write, delete: if isRegisteredUser();
       }
     }
 
-    // Direct 1v1 challenges
+    // Direct 1v1 challenges - registered players only
     match /challenges/{challengeId} {
-      allow read, write, delete: if isAuthenticated();
+      allow read, write, delete: if isRegisteredUser();
     }
   }
 }

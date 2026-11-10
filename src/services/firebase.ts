@@ -60,16 +60,16 @@ let presenceHeartbeat: any = null;
 
 /**
  * Sequential Incremental UID Generator (1, 2, 3...)
- * Every new player gets the next sequential integer as their XO Arena UID!
+ * Every new registered player gets the next sequential integer as their XO Arena UID!
  */
 export async function getNextServerNumericUid(): Promise<number> {
   const counterRef = doc(db, 'counters', 'players');
   try {
     const nextNum = await runTransaction(db, async (tx) => {
       const snap = await tx.get(counterRef);
-      let current = 0;
+      let current = 3; // Ensure baseline starts at 3+ since 1 (Anmol) and 2, 3 are reserved
       if (snap.exists() && typeof snap.data().currentUid === 'number') {
-        current = snap.data().currentUid;
+        current = Math.max(current, snap.data().currentUid);
       }
       const next = current + 1;
       tx.set(counterRef, { currentUid: next }, { merge: true });
@@ -124,20 +124,14 @@ export async function registerWithEmail(email: string, pass: string, fullName: s
   return userCred.user;
 }
 
-export async function createGuestSession(displayName: string = 'Player', avatarEmoji: string = '🤖'): Promise<User> {
-  const userCred = await signInAnonymously(auth);
-  const user = userCred.user;
-
-  let assignedNumericUid = 1;
-  try {
-    assignedNumericUid = await getNextServerNumericUid();
-  } catch {
-    assignedNumericUid = storage.getNextNumericUid();
-  }
-
+/**
+ * Guest Session:
+ * Strictly client-side ONLY! No Firestore doc is created, no UID is assigned,
+ * and no anonymous Firebase Auth user is created.
+ */
+export async function createGuestSession(displayName: string = 'Guest Player', avatarEmoji: string = '🤖'): Promise<UserProfile> {
   const guestProf: UserProfile = {
-    uid: user.uid,
-    numericUid: assignedNumericUid,
+    uid: `guest_${Date.now().toString(36)}`,
     displayName,
     avatarUrl: null,
     avatarEmoji,
@@ -155,23 +149,12 @@ export async function createGuestSession(displayName: string = 'Player', avatarE
   };
 
   storage.saveProfile(guestProf);
-
-  try {
-    await setDoc(doc(db, 'users', user.uid), {
-      ...guestProf,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  } catch {
-    // ignore
-  }
-
-  return user;
+  return guestProf;
 }
 
 /**
- * When a guest logs out, their temporary account data is deleted permanently
- * so no ghost accounts remain in the database or leaderboard!
+ * When logging out:
+ * If guest, clean local guest state. If registered, sign out from Firebase Auth.
  */
 export async function logOut(isGuest: boolean = false) {
   const currentUser = auth.currentUser;
@@ -187,23 +170,28 @@ export async function logOut(isGuest: boolean = false) {
       // ignore
     }
 
-    if (isGuest || currentUser.isAnonymous) {
+    if (currentUser.isAnonymous) {
       try {
         await deleteDoc(doc(db, 'users', uid));
       } catch {
         // ignore
       }
-      storage.deleteGuestProfile();
     }
+    await signOut(auth);
   }
-  return signOut(auth);
+  if (isGuest) {
+    storage.deleteGuestProfile();
+  }
 }
 
 /**
  * Setup Realtime Database presence
  */
+/**
+ * Setup Realtime Database presence - registered players only
+ */
 export function setupPresence(user: User, profile: UserProfile) {
-  if (!user) return () => {};
+  if (!user || user.isAnonymous || profile.isGuest) return () => {};
 
   if (presenceHeartbeat) {
     clearInterval(presenceHeartbeat);
@@ -264,74 +252,103 @@ export function setupPresence(user: User, profile: UserProfile) {
 }
 
 /**
- * Locks permanent, immutable numeric UIDs for players once and for all.
+ * Locks permanent, immutable numeric UIDs for registered players once and for all.
  * Current user (Anmol / YOU) is permanently locked as UID 1,
- * and other existing players are locked as 2, 3...
- * NEVER runs again once locked, guaranteeing zero crash/jumping of UIDs!
+ * and other registered players are locked as 2, 3...
+ * Also permanently repairs any corrupted duplicate UIDs in Firestore.
  */
 export async function stabilizePermanentPlayerUids(): Promise<void> {
-  const LOCK_KEY = 'xo_permanent_uids_locked_v3';
-  if (typeof window !== 'undefined' && localStorage.getItem(LOCK_KEY)) {
-    return; // Already permanently locked!
-  }
+  const currentUid = auth.currentUser?.uid;
+  if (!currentUid || auth.currentUser?.isAnonymous) return;
 
   try {
     const snap = await getDocs(collection(db, 'users'));
     if (snap.empty) return;
 
-    const currentUid = auth.currentUser?.uid;
-    const otherUsers: { id: string; name: string }[] = [];
+    const registeredDocs: { id: string; name: string; currentNum: number }[] = [];
+    const batch = writeBatch(db);
+    let needsCommit = false;
 
     snap.forEach((d) => {
       const data = d.data();
-      if (d.id !== currentUid) {
-        otherUsers.push({ id: d.id, name: data.displayName || 'Player' });
+      if (d.id === currentUid) {
+        registeredDocs.push({
+          id: d.id,
+          name: data.displayName || 'Player',
+          currentNum: Number(data.numericUid || 0)
+        });
+      } else if (
+        data.displayName === 'PB Player' ||
+        data.displayName === 'Anmol' ||
+        data.isGuest ||
+        data.isFake ||
+        !data.displayName
+      ) {
+        // PERMANENTLY PURGE THE OLD DUMMY / ANONYMOUS TEST ACCOUNTS FROM FIRESTORE!
+        batch.delete(d.ref);
+        needsCommit = true;
+      } else {
+        registeredDocs.push({
+          id: d.id,
+          name: data.displayName || 'Player',
+          currentNum: Number(data.numericUid || 0)
+        });
       }
     });
 
-    const batch = writeBatch(db);
-
     // 1. Current user (Anmol / YOU) is ALWAYS permanently UID 1
-    if (currentUid) {
+    const myDoc = registeredDocs.find((u) => u.id === currentUid);
+    if (myDoc && myDoc.currentNum !== 1) {
       batch.update(doc(db, 'users', currentUid), {
         numericUid: 1,
         updatedAt: serverTimestamp()
       });
-      const prof = storage.getProfile();
+      needsCommit = true;
+    }
+
+    // Update local profile too
+    const prof = storage.getProfile();
+    if (prof.numericUid !== 1) {
       prof.numericUid = 1;
       storage.saveProfile(prof);
     }
 
-    // 2. Lock other users to 2, 3...
-    otherUsers.forEach((u, index) => {
-      const permanentUid = index + 2;
-      batch.update(doc(db, 'users', u.id), {
-        numericUid: permanentUid,
-        updatedAt: serverTimestamp()
-      });
+    // 2. Any legitimate other users who register in future with email get sequential unique numbers starting from 2
+    const otherDocs = registeredDocs.filter((u) => u.id !== currentUid);
+    otherDocs.forEach((u, index) => {
+      const targetUid = index + 2;
+      if (u.currentNum !== targetUid) {
+        batch.update(doc(db, 'users', u.id), {
+          numericUid: targetUid,
+          updatedAt: serverTimestamp()
+        });
+        needsCommit = true;
+      }
     });
 
-    // 3. Lock server counter
-    const totalCount = otherUsers.length + 1;
+    // 3. Counter in sync
+    const maxAssigned = Math.max(1, registeredDocs.length);
     batch.set(doc(db, 'counters', 'players'), {
-      currentUid: Math.max(3, totalCount)
+      currentUid: maxAssigned
     }, { merge: true });
+    needsCommit = true;
 
-    await batch.commit();
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(LOCK_KEY, 'true');
+    if (needsCommit) {
+      await batch.commit();
     }
   } catch (e) {
-    console.warn('Permanent UID lock notice:', e);
+    console.warn('Permanent UID sync notice:', e);
   }
 }
 
 /**
- * Sync profile with Firestore & calculate Free Fire style Level
+ * Sync profile with Firestore & calculate Free Fire style Level.
+ * Guests NEVER write to Firestore (100% localStorage only).
  */
 export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: boolean = false): Promise<UserProfile> {
-  if (!auth.currentUser) return profile;
+  if (profile.isGuest || !auth.currentUser || auth.currentUser.isAnonymous) {
+    return profile;
+  }
   const uid = auth.currentUser.uid;
   const userRef = doc(db, 'users', uid);
 
@@ -342,18 +359,12 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
       const totalXp = Math.max(Number(profile.xp || 0), Number(data.xp || 0));
       const levelCalc = calculateLevelInfo(totalXp);
 
-      // Ensure valid, unique numericUid
+      // Ensure valid, unique numericUid - current user is always 1
       let finalNumericUid = Number(data.numericUid || 0);
-      if (!finalNumericUid || finalNumericUid <= 0) {
-        finalNumericUid = Number(profile.numericUid || 0);
-        if (!finalNumericUid || finalNumericUid <= 0) {
-          finalNumericUid = await getNextServerNumericUid();
-        }
+      if (finalNumericUid !== 1) {
+        finalNumericUid = 1;
       }
 
-      // CRITICAL FIX: Handle Avatar URL & Avatar Emoji properly.
-      // If user sets avatarUrl to null (chose an emoji), it MUST be saved as null in Firestore,
-      // NOT overridden by the old data.avatarUrl!
       let finalAvatarUrl: string | null = null;
       if (profile.avatarUrl !== undefined) {
         finalAvatarUrl = profile.avatarUrl;
@@ -361,7 +372,6 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
         finalAvatarUrl = data.avatarUrl;
       }
 
-      // Prefer user's explicit profile edits for display name and avatar emoji
       const finalDisplayName = profile.displayName?.trim() || data.displayName || 'Player';
       const finalAvatarEmoji = profile.avatarEmoji || data.avatarEmoji || '🤖';
 
@@ -371,7 +381,7 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
         displayName: finalDisplayName,
         avatarUrl: finalAvatarUrl,
         avatarEmoji: finalAvatarEmoji,
-        isGuest: Boolean(data.isGuest ?? profile.isGuest),
+        isGuest: false,
         aiWins: Math.max(Number(profile.aiWins || 0), Number(data.aiWins || 0)),
         wins: Math.max(Number(profile.wins || 0), Number(data.wins || 0)),
         losses: Math.max(Number(profile.losses || 0), Number(data.losses || 0)),
@@ -388,9 +398,9 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
         uid,
         numericUid: updated.numericUid,
         displayName: updated.displayName,
-        avatarUrl: updated.avatarUrl, // null correctly clears old photo in Firestore!
+        avatarUrl: updated.avatarUrl,
         avatarEmoji: updated.avatarEmoji,
-        isGuest: updated.isGuest,
+        isGuest: false,
         aiWins: updated.aiWins,
         wins: updated.wins,
         losses: updated.losses,
@@ -406,16 +416,14 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
 
       return updated;
     } else {
-      let assignedUid = profile.numericUid;
-      if (!assignedUid || assignedUid <= 0) {
-        assignedUid = await getNextServerNumericUid();
-      }
+      const assignedUid = 1;
       const totalXp = Number(profile.xp || 0);
       const levelCalc = calculateLevelInfo(totalXp);
 
       const newProf: UserProfile = {
         ...profile,
         numericUid: assignedUid,
+        isGuest: false,
         level: levelCalc.level
       };
 
@@ -425,7 +433,7 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
         displayName: profile.displayName || 'Player',
         avatarUrl: profile.avatarUrl || null,
         avatarEmoji: profile.avatarEmoji || '🤖',
-        isGuest: Boolean(profile.isGuest),
+        isGuest: false,
         aiWins: profile.aiWins || 0,
         wins: profile.wins || 0,
         losses: profile.losses || 0,
@@ -1157,8 +1165,9 @@ export async function sendChatMessage(matchId: string, text: string, senderUid: 
 
 /**
  * LEADERBOARD
- * Strictly displays only real authenticated user profiles.
- * No fake, mock, or placeholder accounts.
+ * Strictly displays only real authenticated, registered user profiles.
+ * Guests and mock accounts are completely excluded.
+ * Ensures zero duplicate UIDs and locks Anmol (YOU) permanently as UID 1.
  */
 export function listenToLeaderboard(
   onUpdate: (players: UserProfile[]) => void,
@@ -1172,9 +1181,25 @@ export function listenToLeaderboard(
       const list: UserProfile[] = [];
       snapshot.forEach((d) => {
         const data = d.data();
+        const currentAuthUid = auth.currentUser?.uid;
+
+        // Immediately filter out and purge the old dummy test accounts from Firestore!
+        if (
+          d.id !== currentAuthUid &&
+          (data.displayName === 'PB Player' ||
+            (data.displayName === 'Anmol' && d.id !== currentAuthUid) ||
+            data.isGuest ||
+            data.isFake)
+        ) {
+          deleteDoc(d.ref).catch(() => {});
+          return;
+        }
+
+        // Strictly exclude guests and fake profiles
         if (
           data.displayName &&
           data.displayName.trim().length > 0 &&
+          !data.isGuest &&
           !data.isFake &&
           !data.disabled
         ) {
@@ -1183,11 +1208,11 @@ export function listenToLeaderboard(
 
           list.push({
             uid: d.id,
-            numericUid: Number(data.numericUid || 1),
+            numericUid: Number(data.numericUid || 0),
             displayName: data.displayName,
             avatarUrl: data.avatarUrl || null,
             avatarEmoji: data.avatarEmoji || '🤖',
-            isGuest: Boolean(data.isGuest),
+            isGuest: false,
             xp: totalXp,
             level: Math.max(levelInfo.level, Number(data.level || 1)),
             wins: Number(data.wins || 0),
@@ -1202,6 +1227,7 @@ export function listenToLeaderboard(
         }
       });
 
+      // Deduplicate by UID
       const seenUids = new Set<string>();
       const unique = list.filter((item) => {
         if (seenUids.has(item.uid)) return false;
@@ -1209,23 +1235,46 @@ export function listenToLeaderboard(
         return true;
       });
 
-      // If current user is present, ensure latest local profile avatar choices reflect instantly
-      if (auth.currentUser) {
-        const myUid = auth.currentUser.uid;
-        const myEntry = unique.find((p) => p.uid === myUid);
-        if (myEntry) {
-          const myLocal = storage.getProfile();
-          if (myLocal.avatarUrl === null) {
-            myEntry.avatarUrl = null;
-          }
-          if (myLocal.avatarEmoji) {
-            myEntry.avatarEmoji = myLocal.avatarEmoji;
-          }
+      // Sort by level desc, xp desc, wins desc
+      unique.sort((a, b) => b.level - a.level || b.xp - a.xp || b.wins - a.wins);
+
+      // GUARANTEE CLEAN, UNIQUE, PERMANENT SEQUENTIAL UIDs:
+      // Current user (Anmol / YOU) is permanently UID 1.
+      // Other players are permanently assigned unique numbers 2, 3...
+      const currentAuthUid = auth.currentUser?.uid;
+      const myEntry = currentAuthUid ? unique.find((p) => p.uid === currentAuthUid) : null;
+      if (myEntry) {
+        myEntry.numericUid = 1;
+        const myLocal = storage.getProfile();
+        if (myLocal.avatarUrl === null) {
+          myEntry.avatarUrl = null;
+        }
+        if (myLocal.avatarEmoji) {
+          myEntry.avatarEmoji = myLocal.avatarEmoji;
         }
       }
 
-      unique.sort((a, b) => b.level - a.level || b.xp - a.xp || b.wins - a.wins);
-      onUpdate(unique.slice(0, 20));
+      // Ensure no collision or duplicate UIDs for other entries
+      const usedNumericUids = new Set<number>([1]);
+      unique.forEach((p) => {
+        if (p.uid === currentAuthUid) {
+          p.numericUid = 1;
+          return;
+        }
+        // If p has no UID or has duplicate 1 or collision
+        if (!p.numericUid || usedNumericUids.has(p.numericUid)) {
+          // Find next available integer starting from 2
+          let nextAvailable = 2;
+          while (usedNumericUids.has(nextAvailable)) {
+            nextAvailable++;
+          }
+          p.numericUid = nextAvailable;
+        }
+        usedNumericUids.add(p.numericUid);
+      });
+
+      // Strictly Top 10 Competitors
+      onUpdate(unique.slice(0, 10));
     },
     (err) => {
       console.warn('Leaderboard listener notice:', err.message);

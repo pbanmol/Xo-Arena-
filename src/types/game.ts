@@ -9,7 +9,7 @@ export type TabScreen = 'home' | 'arena' | 'online' | 'history' | 'ranks' | 'pro
 
 export interface UserProfile {
   uid: string;
-  numericUid: number; // Sequential XO Arena UID: 1, 2, 3...
+  numericUid?: number; // Sequential XO Arena UID for registered players: 1, 2, 3...
   displayName: string;
   avatarUrl: string | null;
   avatarEmoji?: string;

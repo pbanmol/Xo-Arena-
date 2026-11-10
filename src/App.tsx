@@ -63,8 +63,8 @@ export default function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<TabScreen>('home');
 
-  // Settings & Theme
-  const [theme, setTheme] = useState<AppTheme>(() => storage.get('theme', 'light'));
+  // Settings & Theme (Default: Crimson Red, White/Light Mode)
+  const [theme, setTheme] = useState<AppTheme>(() => storage.get('theme', 'crimson'));
   const [isDark, setIsDark] = useState<boolean>(() => storage.get('dark_mode', false));
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => storage.get('sound', true));
   const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(() => storage.get('haptics', true));
@@ -141,14 +141,6 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Smooth initial startup
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsAppLoading(false);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, []);
-
   // Sync theme attribute to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -201,16 +193,8 @@ export default function App() {
     };
   }, []);
 
-  // Listeners for Online Lobby
+  // Global Leaderboard Listener (Active for all users & guests)
   useEffect(() => {
-    if (!currentUser) return;
-
-    // Online players
-    const unsubPlayers = listenToOnlinePlayers(currentUser.uid, (players) => {
-      setOnlinePlayers(players);
-    });
-
-    // Leaderboard
     const unsubLeaderboard = listenToLeaderboard(
       (ranks) => {
         setLeaderboard(ranks);
@@ -221,6 +205,21 @@ export default function App() {
         }
       }
     );
+    return () => unsubLeaderboard();
+  }, []);
+
+  // Listeners for Online Lobby (Registered Players Only)
+  useEffect(() => {
+    if (!currentUser || currentUser.isAnonymous || profile.isGuest) {
+      setOnlinePlayers([]);
+      setIncomingChallenge(null);
+      return;
+    }
+
+    // Online players
+    const unsubPlayers = listenToOnlinePlayers(currentUser.uid, (players) => {
+      setOnlinePlayers(players);
+    });
 
     // Incoming challenges
     const unsubChallenges = listenToIncomingChallenges(
@@ -246,10 +245,9 @@ export default function App() {
 
     return () => {
       unsubPlayers();
-      unsubLeaderboard();
       unsubChallenges();
     };
-  }, [currentUser, profile.blockedUids]);
+  }, [currentUser, profile.blockedUids, profile.isGuest]);
 
   // Listen to Active Online Match
   useEffect(() => {
@@ -737,7 +735,7 @@ export default function App() {
   };
 
   if (isAppLoading) {
-    return <SplashScreen statusText="Connecting to Arena..." />;
+    return <SplashScreen onComplete={() => setIsAppLoading(false)} />;
   }
 
   return (
@@ -795,6 +793,7 @@ export default function App() {
             onLaunchLocal={() => setLocalSetupOpen(true)}
             onLaunchOnline={() => setActiveTab('online')}
             onOpenProfile={() => setActiveTab('profile')}
+            onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
 
@@ -851,6 +850,8 @@ export default function App() {
               addToast('Refreshed active players list.');
             }}
             myUid={currentUser?.uid}
+            isGuest={Boolean(profile.isGuest || !currentUser || currentUser.isAnonymous)}
+            onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
 
@@ -869,6 +870,8 @@ export default function App() {
           <LeaderboardScreen
             players={leaderboard}
             currentUid={currentUser?.uid}
+            isGuest={Boolean(profile.isGuest || !currentUser || currentUser.isAnonymous)}
+            onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
 

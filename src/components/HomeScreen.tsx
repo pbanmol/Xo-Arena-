@@ -9,6 +9,7 @@ interface HomeScreenProps {
   onLaunchLocal: () => void;
   onLaunchOnline: () => void;
   onOpenProfile: () => void;
+  onOpenAuth?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -16,10 +17,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onLaunchComputer,
   onLaunchLocal,
   onLaunchOnline,
-  onOpenProfile
+  onOpenProfile,
+  onOpenAuth
 }) => {
   const levelInfo = calculateLevelInfo(profile.xp);
   const winRate = profile.matches > 0 ? Math.round((profile.wins / profile.matches) * 100) : 0;
+  const isGuest = Boolean(profile.isGuest || !profile.numericUid);
 
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
@@ -58,7 +61,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 profile.displayName ? profile.displayName.charAt(0).toUpperCase() : 'P'
               )}
             </div>
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+            <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${isGuest ? 'bg-amber-400' : 'bg-emerald-500'}`} />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -77,11 +80,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </span>
             </div>
 
-            {/* Sequential XO Arena UID */}
+            {/* Sequential XO Arena UID or Guest Badge */}
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--bg-surface-elevated)] border border-[var(--border-subtle)] text-[var(--accent-primary)]">
-                XO ARENA UID: {profile.numericUid || 1}
-              </span>
+              {isGuest ? (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-500">
+                  Guest Mode • No UID (Offline Only)
+                </span>
+              ) : (
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--bg-surface-elevated)] border border-[var(--border-subtle)] text-[var(--accent-primary)]">
+                  XO ARENA UID: {profile.numericUid}
+                </span>
+              )}
             </div>
 
             {/* Free Fire style progressive XP bar */}
@@ -161,11 +170,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             }}
           >
             <div className="font-display font-bold text-lg leading-none text-amber-500 flex items-center justify-center gap-0.5">
-              <span>{profile.streak}</span>
+              <span>{Math.max(profile.bestStreak || 0, profile.streak || 0)}</span>
               <span className="text-xs">🔥</span>
             </div>
             <div className="text-[9px] font-bold uppercase tracking-wider mt-1" style={{ color: 'var(--text-muted)' }}>
-              Streak
+              Max Streak
             </div>
           </div>
         </div>
@@ -200,7 +209,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 Play with Computer
               </h3>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Practice vs Easy, Tactical, or Minimax AI
+                Practice vs Easy, Tactical, or Minimax AI (Unlocked)
               </p>
             </div>
           </div>
@@ -234,7 +243,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 Play with Friend
               </h3>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Pass & Play on this phone or screen
+                Pass & Play on this phone or screen (Unlocked)
               </p>
             </div>
           </div>
@@ -245,39 +254,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <button
           onClick={() => {
             sound.playClick();
-            onLaunchOnline();
+            if (isGuest && onOpenAuth) {
+              onOpenAuth();
+            } else {
+              onLaunchOnline();
+            }
           }}
           className="rounded-2xl border p-4 flex items-center justify-between text-left transition-all hover:scale-[1.01] active:scale-[0.98] shadow-md cursor-pointer relative overflow-hidden"
           style={{
             backgroundColor: 'var(--bg-card)',
-            borderColor: 'var(--border-accent)',
-            boxShadow: 'var(--accent-glow)'
+            borderColor: isGuest ? 'var(--border-subtle)' : 'var(--border-accent)',
+            boxShadow: isGuest ? 'none' : 'var(--accent-glow)'
           }}
         >
           <div className="flex items-center gap-3.5">
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl text-white font-bold"
               style={{
-                background: 'linear-gradient(135deg, var(--player-x), var(--player-o))'
+                background: isGuest
+                  ? 'linear-gradient(135deg, #64748b, #475569)'
+                  : 'linear-gradient(135deg, var(--player-x), var(--player-o))'
               }}
             >
-              ⚡
+              {isGuest ? '🔒' : '⚡'}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-base leading-tight" style={{ color: 'var(--text-main)' }}>
                   Online Multiplayer
                 </h3>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-[10px] font-bold text-white uppercase tracking-wider animate-pulse">
-                  Live
-                </span>
+                {isGuest ? (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-[10px] font-bold text-white uppercase tracking-wider">
+                    Sign In Required
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-[10px] font-bold text-white uppercase tracking-wider animate-pulse">
+                    Live
+                  </span>
+                )}
               </div>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Private Room Codes, Quick Match & Active Players
+                {isGuest
+                  ? 'Sign in or register to get an official UID & battle online'
+                  : 'Private Room Codes, Quick Match & Active Players'}
               </p>
             </div>
           </div>
-          <span className="text-lg font-bold" style={{ color: 'var(--accent-primary)' }}>➔</span>
+          <span className="text-lg font-bold" style={{ color: isGuest ? 'var(--text-muted)' : 'var(--accent-primary)' }}>➔</span>
         </button>
       </div>
 
