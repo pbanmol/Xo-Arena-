@@ -45,11 +45,6 @@ jobs:
             exit 1
           fi
 
-      - name: Set up Gradle 9.3.1
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '9.3.1'
-
       - name: Create temporary debug keystore
         run: |
           if [ ! -f ./debug.keystore ]; then
@@ -128,6 +123,6 @@ jobs:
             echo "✅ GitHub Release published successfully!" >> $GITHUB_STEP_SUMMARY
             gh release view "debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}" || true
           else
-            echo "⚠️ Warning: GitHub Release publishing failed or skipped, but the APK build succeeded." >> $GITHUB_SUMMARY
+            echo "⚠️ Warning: GitHub Release publishing failed or skipped, but the APK build succeeded." >> $GITHUB_STEP_SUMMARY
             echo "The Actions artifact named **app-debug-apk** is available for download." >> $GITHUB_STEP_SUMMARY
           fi
