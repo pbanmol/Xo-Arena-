@@ -45,21 +45,11 @@ jobs:
             exit 1
           fi
 
-      - name: Create temporary debug keystore
-        run: |
-          if [ ! -f ./debug.keystore ]; then
-            keytool -genkey -v -keystore ./debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          if [ ! -f ./debug.keystore ]; then
-            echo "Error: debug.keystore failed to generate"
-            exit 1
-          fi
-
       - name: Build the debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --stacktrace --no-daemon
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Verify the APK
         run: |
@@ -114,7 +104,7 @@ jobs:
           - Run Number: ${{ github.run_number }}
           - Run Attempt: ${{ github.run_attempt }}
           - Commit SHA: ${{ github.sha }}
-          - Note: Testing debug build signed with temporary keystore."
+          - Note: Testing debug build."
 
       - name: Report APK download result
         run: |
