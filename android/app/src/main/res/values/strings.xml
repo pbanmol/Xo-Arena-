@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">XO Arena</string>
+    <string name="title_activity_main">XO Arena</string>
+    <string name="package_name">com.xoarena.game</string>
+    <string name="custom_url_scheme">com.xoarena.game</string>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "appId": "com.xoarena.game",
+  "appName": "XO Arena",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
