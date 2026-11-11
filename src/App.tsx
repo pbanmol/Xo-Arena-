@@ -53,6 +53,7 @@ import { ResultModal } from './components/ResultModal';
 import { ChallengeModal } from './components/ChallengeModal';
 import { LocalSetupModal } from './components/LocalSetupModal';
 import { AuthModal } from './components/AuthModal';
+import { InstallAppModal } from './components/InstallAppModal';
 import { ToastContainer, ToastItem } from './components/Toast';
 import { SplashScreen } from './components/SplashScreen';
 
@@ -127,6 +128,7 @@ export default function App() {
   const [incomingChallenge, setIncomingChallenge] = useState<DirectChallenge | null>(null);
   const [localSetupOpen, setLocalSetupOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [installModalOpen, setInstallModalOpen] = useState(false);
 
   // Helper: Toast
   const addToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
@@ -990,6 +992,10 @@ export default function App() {
         onContinueGuest={() => {
           addToast('Playing as Guest in local/online arena.');
         }}
+      />
+      <InstallAppModal 
+        isOpen={installModalOpen}
+        onClose={() => setInstallModalOpen(false)}
       />
     </div>
   );
