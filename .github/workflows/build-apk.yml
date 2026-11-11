@@ -38,13 +38,18 @@ jobs:
       - name: Build the debug APK
         id: build_gradle
         run: |
+          echo "sdk.dir=${ANDROID_HOME:-/usr/local/lib/android/sdk}" > android/local.properties
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee ../gradle_build.log
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
 
       - name: Report Build Logs on Failure
         if: failure()
         run: |
+          ERR_MSG=$(grep -E "Caused by:|ERROR:|BUILD FAILED" gradle_build.log | head -n 3 | tr '\n' ' ' || echo "Build error")
+          echo "::error title=Gradle Build Error::$ERR_MSG"
           echo "### ❌ Build Failed - Log Output" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
           if [ -f gradle_build.log ]; then
