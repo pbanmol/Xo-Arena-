@@ -21,7 +21,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies and build web app
         run: |
@@ -38,33 +38,33 @@ jobs:
       - name: Build the debug APK
         id: build_gradle
         run: |
-          echo "sdk.dir=${ANDROID_HOME:-/usr/local/lib/android/sdk}" > android/local.properties
+          set -o pipefail
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "Using Android SDK at: $SDK_DIR"
+          echo "sdk.dir=$SDK_DIR" > android/local.properties
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee ../gradle_build.log
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
 
       - name: Report Build Logs on Failure
         if: failure()
         run: |
-          ERR_MSG=$(grep -E "Caused by:|ERROR:|BUILD FAILED" gradle_build.log | head -n 3 | tr '\n' ' ' || echo "Build error")
-          echo "::error title=Gradle Build Error::$ERR_MSG"
-          echo "### ❌ Build Failed - Log Output" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
           if [ -f gradle_build.log ]; then
-            tail -n 80 gradle_build.log >> $GITHUB_STEP_SUMMARY
+            ERR_MSG=$(grep -E "Caused by:|ERROR:|FAILURE:|BUILD FAILED" gradle_build.log | head -n 5 | tr '\n' ' ' || true)
+            echo "::error title=Gradle Build Error::${ERR_MSG:-Gradle build failed}"
+            echo "### ❌ Build Failed - Log Output" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 100 gradle_build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           else
-            echo "No gradle_build.log generated." >> $GITHUB_STEP_SUMMARY
+            echo "::error title=Build Step Failed::Build failed before Gradle ran"
           fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Verify the APK
         run: |
           apk_path="android/app/build/outputs/apk/debug/app-debug.apk"
           if [ ! -f "$apk_path" ]; then
             echo "Error: Expected debug APK not found at $apk_path"
-            echo "Searching inside android/app/build/outputs/apk:"
             find android/app/build/outputs/apk -name "*.apk" || true
             exit 1
           fi
@@ -117,6 +117,8 @@ jobs:
 
       - name: Report APK download result
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "### APK Build & Release Report" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.publish_release.outcome }}" == "success" ]; then
