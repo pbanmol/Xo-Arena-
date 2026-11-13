@@ -30,16 +30,48 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [avatarEmoji, setAvatarEmoji] = useState<string>(profile.avatarEmoji || '🤖');
 
+  const [uploadError, setUploadError] = useState<string>('');
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1024 * 1024) {
-      alert('File size must be under 1MB');
+    setUploadError('');
+
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please select a valid image file.');
       return;
     }
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      setAvatarUrl(event.target?.result as string);
+      const dataUrl = event.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 256;
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          setAvatarUrl(canvas.toDataURL('image/jpeg', 0.82));
+        } else {
+          setAvatarUrl(dataUrl);
+        }
+      };
+      img.onerror = () => {
+        setUploadError('Could not read the selected image.');
+      };
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -125,6 +157,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
             </label>
             <span className="text-[10px] text-slate-400">Or choose an avatar emoji below:</span>
+            {uploadError && (
+              <span className="text-[11px] font-semibold text-rose-500">{uploadError}</span>
+            )}
           </div>
         </div>
 

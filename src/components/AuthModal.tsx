@@ -3,6 +3,7 @@ import { sound } from '../services/sound';
 
 interface AuthModalProps {
   isOpen: boolean;
+  isEntryGate?: boolean;
   onClose: () => void;
   onSignIn: (email: string, pass: string) => Promise<void>;
   onRegister: (email: string, pass: string, fullName: string, avatarEmoji: string) => Promise<void>;
@@ -13,6 +14,7 @@ const REG_EMOJIS = ['🤖', '🥷', '👑', '⚡', '🐉', '🎯', '🦁', '🔥
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
+  isEntryGate = false,
   onClose,
   onSignIn,
   onRegister,
@@ -74,28 +76,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto ${
+        isEntryGate ? 'bg-[var(--bg-base)]' : 'bg-black/60 backdrop-blur-sm'
+      } animate-in fade-in duration-150`}
+    >
       <div
-        className="w-full max-w-sm rounded-3xl border p-6 flex flex-col items-center text-center shadow-2xl relative animate-in zoom-in-95 duration-200"
+        className="w-full max-w-sm rounded-3xl border p-6 flex flex-col items-center text-center shadow-2xl relative animate-in zoom-in-95 duration-200 my-auto"
         style={{
           backgroundColor: 'var(--bg-card)',
           borderColor: 'var(--border-subtle)'
         }}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-        >
-          ✕
-        </button>
+        {!isEntryGate && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+          >
+            ✕
+          </button>
+        )}
 
-        <div className="text-4xl mb-2">🎮</div>
+        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-[var(--border-subtle)] mb-2.5">
+          <img src="/icon.png" alt="XO Arena" className="w-full h-full object-cover" />
+        </div>
 
         <h3 className="font-display font-black text-2xl tracking-wider" style={{ color: 'var(--text-main)' }}>
           XO ARENA
         </h3>
         <p className="text-xs text-slate-400 mb-4">
-          {tab === 'signin' ? 'Sign in to save progress & stats' : 'Create an account to join the arena'}
+          {isEntryGate
+            ? 'Choose how you want to enter the arena'
+            : tab === 'signin'
+              ? 'Sign in to save progress & stats'
+              : 'Create an account to join the arena'}
         </p>
 
         {/* Tab switch */}
@@ -113,7 +127,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               setTab('signin');
               setErrorMsg('');
             }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === 'signin'
                 ? 'bg-[var(--accent-primary)] text-white shadow-sm'
                 : 'text-slate-400'
@@ -128,7 +142,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               setTab('register');
               setErrorMsg('');
             }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === 'register'
                 ? 'bg-[var(--accent-primary)] text-white shadow-sm'
                 : 'text-slate-400'
@@ -256,7 +270,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             color: 'var(--text-main)'
           }}
         >
-          ⚡ Play Directly as Guest
+          ⚡ Play Directly as Guest (No ID)
         </button>
       </div>
     </div>

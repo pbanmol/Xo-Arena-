@@ -24,10 +24,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t flex items-center justify-around px-2"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t flex items-center justify-around px-1.5 pt-1"
       style={{
         backgroundColor: 'var(--nav-bg)',
-        borderColor: 'var(--nav-border)'
+        borderColor: 'var(--nav-border)',
+        paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom))'
       }}
     >
       {tabs.map((tab) => {
@@ -39,7 +40,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               sound.playClick();
               onTabChange(tab.id);
             }}
-            className={`flex flex-col items-center justify-center flex-1 h-full relative transition-colors ${
+            className={`flex flex-col items-center justify-center flex-1 h-14 relative transition-colors cursor-pointer ${
               isActive ? 'font-bold' : 'opacity-70 hover:opacity-100'
             }`}
             style={{
@@ -54,12 +55,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 </span>
               ) : null}
             </div>
-            <span className="text-[10px] mt-1 tracking-tight font-medium">
+            <span className="text-[10px] mt-1 tracking-tight font-medium leading-none">
               {tab.label}
             </span>
             {isActive && (
               <span
-                className="absolute bottom-1 w-6 h-0.5 rounded-full"
+                className="absolute bottom-0.5 w-6 h-0.5 rounded-full"
                 style={{ backgroundColor: 'var(--accent-primary)' }}
               />
             )}

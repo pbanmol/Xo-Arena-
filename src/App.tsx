@@ -57,8 +57,10 @@ import { ToastContainer, ToastItem } from './components/Toast';
 import { SplashScreen } from './components/SplashScreen';
 
 export default function App() {
-  // Initial App Startup Splash
+  // Initial App Startup Splash & Entry Gate
   const [isAppLoading, setIsAppLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [hasChosenEntryMode, setHasChosenEntryMode] = useState(false);
 
   // Navigation
   const [activeTab, setActiveTab] = useState<TabScreen>('home');
@@ -165,10 +167,18 @@ export default function App() {
   // Auth & Presence Initialization
   useEffect(() => {
     let presenceCleanup: any = null;
+    const authTimeout = setTimeout(() => {
+      setAuthReady(true);
+    }, 2000);
 
     const unsubAuth = initAuthListener(async (user) => {
+      clearTimeout(authTimeout);
       setCurrentUser(user);
+      setAuthReady(true);
       if (user) {
+        if (!user.isAnonymous) {
+          setHasChosenEntryMode(true);
+        }
         // Lock permanent, immutable UIDs once and for all (Anmol is permanently UID 1)
         await stabilizePermanentPlayerUids();
 
@@ -188,6 +198,7 @@ export default function App() {
     });
 
     return () => {
+      clearTimeout(authTimeout);
       unsubAuth();
       if (presenceCleanup) presenceCleanup();
     };
@@ -734,9 +745,12 @@ export default function App() {
     addToast(`Theme: ${themes[nextIdx].toUpperCase()}`);
   };
 
-  if (isAppLoading) {
+  if (isAppLoading || !authReady) {
     return <SplashScreen onComplete={() => setIsAppLoading(false)} />;
   }
+
+  const isSignedInAccount = Boolean(currentUser && !currentUser.isAnonymous);
+  const showEntryGate = !isSignedInAccount && !hasChosenEntryMode;
 
   return (
     <div className="min-h-screen flex flex-col max-w-lg mx-auto shadow-2xl relative select-none">
@@ -785,7 +799,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 px-4 py-4 pb-24 overflow-x-hidden">
+      <main className="flex-1 px-4 py-4 pb-28 overflow-x-hidden">
         {activeTab === 'home' && (
           <HomeScreen
             profile={profile}
@@ -926,6 +940,7 @@ export default function App() {
               await logOut(wasGuest);
               const freshProf = storage.getProfile();
               setProfile(freshProf);
+              setHasChosenEntryMode(false);
               addToast(wasGuest ? 'Guest session erased permanently.' : 'Signed out successfully.');
             }}
             isLoggedIn={Boolean(currentUser && !currentUser.isAnonymous)}
@@ -975,20 +990,29 @@ export default function App() {
         onCancel={() => setLocalSetupOpen(false)}
       />
 
-      {/* Authentication Modal */}
+      {/* Authentication Modal (Startup Entry Gate or On-Demand Sign In) */}
       <AuthModal
-        isOpen={authModalOpen}
+        isOpen={showEntryGate || authModalOpen}
+        isEntryGate={showEntryGate}
         onClose={() => setAuthModalOpen(false)}
         onSignIn={async (email, pass) => {
           await loginWithEmail(email, pass);
+          setHasChosenEntryMode(true);
           addToast('Signed in successfully!', 'success');
         }}
         onRegister={async (email, pass, fullName, avatarEmoji) => {
           await registerWithEmail(email, pass, fullName, avatarEmoji);
+          setHasChosenEntryMode(true);
           addToast('Account created and verified!', 'success');
         }}
         onContinueGuest={() => {
-          addToast('Playing as Guest in local/online arena.');
+          const guestProf = storage.getProfile();
+          guestProf.isGuest = true;
+          delete guestProf.numericUid;
+          storage.saveProfile(guestProf);
+          setProfile({ ...guestProf });
+          setHasChosenEntryMode(true);
+          addToast('Playing as Guest (No ID).');
         }}
       />
     </div>
