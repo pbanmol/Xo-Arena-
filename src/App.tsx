@@ -187,6 +187,7 @@ export default function App() {
         const synced = await syncUserProfile({
           ...savedProf,
           uid: user.uid,
+          isGuest: Boolean(user.isAnonymous),
           displayName: user.displayName || savedProf.displayName
         });
         setProfile(synced);
@@ -799,7 +800,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 px-4 py-4 pb-28 overflow-x-hidden">
+      <main className="flex-1 px-4 py-4 pb-32 overflow-x-hidden">
         {activeTab === 'home' && (
           <HomeScreen
             profile={profile}
@@ -894,7 +895,14 @@ export default function App() {
             profile={profile}
             unlockedAchievements={unlockedAchievements}
             onSaveProfile={async (displayName, avatarUrl, avatarEmoji) => {
-              const updated = { ...profile, displayName, avatarUrl, avatarEmoji };
+              const isRealUser = Boolean(currentUser && !currentUser.isAnonymous);
+              const updated = {
+                ...profile,
+                displayName,
+                avatarUrl,
+                avatarEmoji,
+                isGuest: !isRealUser
+              };
               setProfile(updated);
               storage.saveProfile(updated);
               if (currentUser) {

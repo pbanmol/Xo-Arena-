@@ -38,10 +38,18 @@ export const storage = {
   getProfile(uid?: string): UserProfile {
     if (uid) {
       const savedUidProfile = this.get<UserProfile | null>(`profile_${uid}`, null);
-      if (savedUidProfile) return savedUidProfile;
+      if (savedUidProfile) {
+        if (!uid.startsWith('guest_')) {
+          return { ...savedUidProfile, isGuest: false };
+        }
+        return savedUidProfile;
+      }
     }
     const profile = this.get<UserProfile | null>('player_profile', null);
     if (profile) {
+      if (uid && !uid.startsWith('guest_')) {
+        return { ...profile, uid, isGuest: false };
+      }
       // If guest, ensure numericUid is removed
       if (profile.isGuest) {
         delete profile.numericUid;

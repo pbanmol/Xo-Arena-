@@ -346,7 +346,7 @@ export async function stabilizePermanentPlayerUids(): Promise<void> {
  * Guests NEVER write to Firestore (100% localStorage only).
  */
 export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: boolean = false): Promise<UserProfile> {
-  if (profile.isGuest || !auth.currentUser || auth.currentUser.isAnonymous) {
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
     return profile;
   }
   const uid = auth.currentUser.uid;

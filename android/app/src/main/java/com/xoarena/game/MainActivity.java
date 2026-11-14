@@ -29,12 +29,16 @@ public class MainActivity extends BridgeActivity {
         if (rootView != null) {
             rootView.setBackgroundColor(Color.parseColor("#0F172A"));
 
-            WindowInsetsControllerCompat insetsController =
-                WindowCompat.getInsetsController(getWindow(), rootView);
-            if (insetsController != null) {
-                insetsController.setAppearanceLightStatusBars(false);
-                insetsController.setAppearanceLightNavigationBars(false);
-            }
+            Runnable applyLightIconsFalse = () -> {
+                WindowInsetsControllerCompat controller =
+                    WindowCompat.getInsetsController(getWindow(), rootView);
+                if (controller != null) {
+                    controller.setAppearanceLightStatusBars(false);
+                    controller.setAppearanceLightNavigationBars(false);
+                }
+            };
+            applyLightIconsFalse.run();
+            rootView.post(applyLightIconsFalse);
 
             ViewCompat.setOnApplyWindowInsetsListener(rootView, (view, windowInsets) -> {
                 Insets bars = windowInsets.getInsets(
