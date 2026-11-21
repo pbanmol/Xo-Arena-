@@ -162,7 +162,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           Have questions, bug reports, or feedback? Get in touch with us directly via email!
         </p>
         <a
-          href="mailto:anmolpreetsingh47902@gmail.com?subject=XO%20Arena%20Support%20%2F%20Feedback&body=Hi%20PB%20Anmol,%0A%0AI%20am%20reaching%20out%20regarding%20XO%20Arena..."
+          href="mailto:anmolpreetsingh47902@gmail.com?subject=XO%20Arena%20Support%20%2F%20Feedback&body=Hi%20PBX,%0A%0AI%20am%20reaching%20out%20regarding%20XO%20Arena..."
           onClick={() => sound.playClick()}
           className="w-full py-3 px-4 rounded-xl text-white font-bold text-xs tracking-wide shadow-md flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer no-underline"
           style={{ backgroundColor: 'var(--accent-primary)', boxShadow: 'var(--accent-glow)' }}
@@ -219,7 +219,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
       <div className="text-center text-[11px] font-bold tracking-widest uppercase py-3" style={{ color: 'var(--text-muted)' }}>
-        XO ARENA • MADE BY PB ANMOL
+        XO ARENA v1.2 • MADE BY PBX
       </div>
     </div>
   );

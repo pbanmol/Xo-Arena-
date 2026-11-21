@@ -306,7 +306,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Developer credit */}
       <div className="text-center text-[11px] font-bold tracking-widest uppercase py-3" style={{ color: 'var(--text-muted)' }}>
-        XO ARENA • MADE BY PB ANMOL
+        XO ARENA • MADE BY PBX
       </div>
     </div>
   );

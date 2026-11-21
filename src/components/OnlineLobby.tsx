@@ -13,6 +13,8 @@ interface OnlineLobbyProps {
   onCreatePrivateRoom: () => void;
   onJoinPrivateRoom: (code: string) => void;
   onSendChallenge: (targetUid: string, targetName: string) => void;
+  outgoingChallenge?: { id: string; targetUid: string; targetName: string } | null;
+  onCancelOutgoingChallenge?: () => void;
   createdRoomCode: string | null;
   onCancelRoom: () => void;
   onRefreshPlayers: () => void;
@@ -31,6 +33,8 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
   onCreatePrivateRoom,
   onJoinPrivateRoom,
   onSendChallenge,
+  outgoingChallenge,
+  onCancelOutgoingChallenge,
   createdRoomCode,
   onCancelRoom,
   onRefreshPlayers,
@@ -113,9 +117,33 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
     );
   }
 
+  const copyTextSafe = async (text: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+    } catch {
+      // Fall through to legacy textarea copy for iOS Safari / WebView
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    } catch {
+      // ignore
+    }
+  };
+
   const handleCopyCode = () => {
     if (createdRoomCode) {
-      navigator.clipboard.writeText(createdRoomCode);
+      copyTextSafe(createdRoomCode);
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2000);
     }
@@ -123,7 +151,7 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
 
   const handleCopyMyUid = () => {
     const textToCopy = String(profile.numericUid || 1);
-    navigator.clipboard.writeText(textToCopy);
+    copyTextSafe(textToCopy);
     setCopiedMyUid(true);
     setTimeout(() => setCopiedMyUid(false), 2000);
   };
@@ -208,7 +236,7 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
         ) : (
           <button
             onClick={() => {
-              sound.playClick();
+              sound.playMatchmakingStart();
               onStartMatchmaking();
             }}
             className="w-full py-3.5 px-4 rounded-xl text-white font-bold text-sm tracking-wide shadow-md transition-all hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
@@ -221,6 +249,41 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
           </button>
         )}
       </div>
+
+      {/* Active Outgoing Challenge Banner */}
+      {outgoingChallenge && (
+        <div
+          className="rounded-2xl border p-3.5 flex items-center justify-between gap-3 shadow-md animate-in fade-in"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-accent)'
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-xl animate-pulse flex-shrink-0">⚔️</span>
+            <div className="min-w-0">
+              <div className="text-xs font-extrabold truncate" style={{ color: 'var(--text-main)' }}>
+                Challenge sent to {outgoingChallenge.targetName}
+              </div>
+              <div className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                Waiting for opponent to accept...
+              </div>
+            </div>
+          </div>
+          {onCancelOutgoingChallenge && (
+            <button
+              onClick={() => {
+                sound.playClick();
+                onCancelOutgoingChallenge();
+              }}
+              className="px-3 py-1.5 rounded-xl border text-xs font-bold text-rose-500 hover:bg-rose-500/10 active:scale-95 flex-shrink-0 cursor-pointer"
+              style={{ borderColor: 'var(--danger)' }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
 
       {/* User's ID Card - Placed directly below Quick Match & styled to match user screenshot */}
       <div
@@ -343,11 +406,12 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
             <form onSubmit={handleJoinRoom} className="flex gap-1.5">
               <input
                 type="text"
+                inputMode="numeric"
                 value={joinCodeInput}
                 onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                 placeholder="Enter 6-digit Code"
                 maxLength={8}
-                className="flex-1 px-3 py-2 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider outline-none"
+                className="flex-1 px-3 py-2 rounded-xl border text-base font-mono font-bold uppercase tracking-wider outline-none"
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
                   borderColor: 'var(--border-subtle)',
@@ -413,8 +477,8 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
               setSearchedUser(null);
               setDbSearchError('');
             }}
-            placeholder="Search by Player Name or UID (e.g. 1, 20)..."
-            className="w-full pl-8 pr-8 py-2.5 rounded-xl border text-xs outline-none"
+            placeholder="Search by Player Name or UID (e.g. 1, 2)..."
+            className="w-full pl-8 pr-8 py-2.5 rounded-xl border text-base outline-none"
             style={{
               backgroundColor: 'var(--bg-surface-elevated)',
               borderColor: 'var(--border-subtle)',

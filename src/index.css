@@ -47,8 +47,8 @@
     --accent-glow: 0 6px 20px rgba(2, 132, 199, 0.2);
     --player-x: #0284c7;
     --player-o: #0d9488;
-    --header-bg: #ffffff;
-    --nav-bg: #ffffff;
+    --header-bg: #e0f2fe;
+    --nav-bg: #e0f2fe;
     --nav-border: #bae6fd;
   }
 
@@ -67,8 +67,8 @@
     --accent-glow: 0 6px 20px rgba(16, 185, 129, 0.2);
     --player-x: #10b981;
     --player-o: #0ea5e9;
-    --header-bg: #ffffff;
-    --nav-bg: #ffffff;
+    --header-bg: #dcfce7;
+    --nav-bg: #dcfce7;
     --nav-border: #bbf7d0;
   }
 
@@ -87,8 +87,8 @@
     --accent-glow: 0 6px 20px rgba(244, 63, 94, 0.2);
     --player-x: #f43f5e;
     --player-o: #8b5cf6;
-    --header-bg: #ffffff;
-    --nav-bg: #ffffff;
+    --header-bg: #ffe4e6;
+    --nav-bg: #ffe4e6;
     --nav-border: #fecdd3;
   }
 
@@ -145,18 +145,63 @@
     --nav-bg: #0f172a;
     --nav-border: #334155;
   }
+
+  html[data-theme="ocean"][data-dark="true"] {
+    --bg-base: #061624;
+    --bg-surface: #0b2236;
+    --bg-surface-elevated: #10304d;
+    --bg-card: #0c263d;
+    --border-subtle: #1e4b70;
+    --header-bg: #082032;
+    --nav-bg: #082032;
+    --nav-border: #1e4b70;
+  }
+
+  html[data-theme="emerald"][data-dark="true"] {
+    --bg-base: #041a14;
+    --bg-surface: #082920;
+    --bg-surface-elevated: #0d3a2e;
+    --bg-card: #092e24;
+    --border-subtle: #165947;
+    --header-bg: #05231b;
+    --nav-bg: #05231b;
+    --nav-border: #165947;
+  }
+
+  html[data-theme="crimson"][data-dark="true"] {
+    --bg-base: #1a060e;
+    --bg-surface: #280a16;
+    --bg-surface-elevated: #3a1020;
+    --bg-card: #2c0c19;
+    --border-subtle: #5c1a33;
+    --header-bg: #260914;
+    --nav-bg: #260914;
+    --nav-border: #5c1a33;
+  }
+}
+
+html,
+body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
   font-family: var(--font-body);
   background-color: var(--bg-base);
   color: var(--text-main);
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  -webkit-user-select: none;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button,
+a {
+  touch-action: manipulation;
 }
 
 input,

@@ -23,7 +23,7 @@ service cloud.firestore {
 
     // Matchmaking queue - registered players only
     match /matchmaking_queue/{userId} {
-      allow read, write, delete: if isRegisteredUser() && request.auth.uid == userId;
+      allow read, write, delete: if isRegisteredUser();
     }
 
     // 6-digit Private Room codes - registered players only

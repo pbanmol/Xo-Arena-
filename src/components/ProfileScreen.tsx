@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types/game';
 import { ACHIEVEMENTS } from '../services/storage';
 import { sound } from '../services/sound';
@@ -29,6 +29,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [displayName, setDisplayName] = useState(profile.displayName || '');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [avatarEmoji, setAvatarEmoji] = useState<string>(profile.avatarEmoji || '🤖');
+
+  useEffect(() => {
+    setDisplayName(profile.displayName || '');
+    setAvatarUrl(profile.avatarUrl);
+    setAvatarEmoji(profile.avatarEmoji || '🤖');
+  }, [profile.uid, profile.displayName, profile.avatarUrl, profile.avatarEmoji]);
 
   const [uploadError, setUploadError] = useState<string>('');
 
@@ -194,9 +200,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="e.g. PB ANMOL"
+              placeholder="e.g. PBX"
               maxLength={22}
-              className="flex-1 px-3 py-2.5 rounded-xl border text-sm font-semibold outline-none"
+              className="flex-1 px-3 py-2.5 rounded-xl border text-base font-semibold outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',

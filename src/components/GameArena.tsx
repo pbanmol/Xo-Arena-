@@ -59,6 +59,7 @@ export const GameArena: React.FC<GameArenaProps> = ({
 
   const handleCellClick = (idx: number) => {
     if (isGameOver || board[idx] !== null) return;
+    if (mode === 'computer' && currentTurn !== 'X') return;
     if (mode === 'online' && mySymbol && currentTurn !== mySymbol) return;
     haptics.trigger(30);
     onCellClick(idx);
@@ -125,6 +126,8 @@ export const GameArena: React.FC<GameArenaProps> = ({
               ? isMyTurn
                 ? 'YOUR TURN'
                 : "OPPONENT'S TURN"
+              : mode === 'computer' && currentTurn === 'O'
+              ? 'AI THINKING...'
               : `${currentTurn} TURN`}
           </div>
           {roomCode && (
@@ -193,7 +196,11 @@ export const GameArena: React.FC<GameArenaProps> = ({
       >
         {board.map((cell, idx) => {
           const isWinningCell = winningLine.includes(idx);
-          const isClickable = !isGameOver && cell === null && (mode !== 'online' || isMyTurn);
+          const isClickable =
+            !isGameOver &&
+            cell === null &&
+            (mode !== 'online' || isMyTurn) &&
+            (mode !== 'computer' || currentTurn === 'X');
 
           return (
             <button
@@ -332,7 +339,7 @@ export const GameArena: React.FC<GameArenaProps> = ({
               onChange={(e) => setChatText(e.target.value)}
               placeholder="Type in match chat..."
               maxLength={150}
-              className="flex-1 px-3 py-2 text-xs bg-transparent outline-none"
+              className="flex-1 px-3 py-2 text-base bg-transparent outline-none"
               style={{ color: 'var(--text-main)' }}
             />
             <button

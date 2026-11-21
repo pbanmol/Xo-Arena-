@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../services/sound';
 
 interface AuthModalProps {
@@ -25,8 +25,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [selectedEmoji, setSelectedEmoji] = useState('🤖');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Lock background page scroll while modal is open so keyboard focus never jumps the screen
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -65,6 +76,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setErrorMsg('Invalid email or password. Please verify or register.');
       } else if (code.includes('email-already-in-use')) {
         setErrorMsg('This email is already registered. Please Sign In.');
+      } else if (code.includes('invalid-email')) {
+        setErrorMsg('Please enter a valid email address.');
       } else if (err?.message) {
         setErrorMsg(err.message);
       } else {
@@ -77,12 +90,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto ${
+      className={`fixed inset-0 z-50 overflow-y-auto overscroll-contain ${
         isEntryGate ? 'bg-[var(--bg-base)]' : 'bg-black/60 backdrop-blur-sm'
-      } animate-in fade-in duration-150`}
+      }`}
+      style={{
+        paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+        paddingLeft: '1rem',
+        paddingRight: '1rem'
+      }}
     >
+      {/* Stable top-anchored card: never bounces up/down when mobile keyboard opens or closes */}
       <div
-        className="w-full max-w-sm rounded-3xl border p-6 flex flex-col items-center text-center shadow-2xl relative animate-in zoom-in-95 duration-200 my-auto"
+        className="w-full max-w-sm mx-auto mt-2 sm:mt-8 rounded-3xl border p-5 flex flex-col items-center text-center shadow-2xl relative"
         style={{
           backgroundColor: 'var(--bg-card)',
           borderColor: 'var(--border-subtle)'
@@ -90,31 +110,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       >
         {!isEntryGate && (
           <button
+            type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+            aria-label="Close"
+            className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
           >
             ✕
           </button>
         )}
 
-        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-[var(--border-subtle)] mb-2.5">
+        <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)] mb-2">
           <img src="/icon.png" alt="XO Arena" className="w-full h-full object-cover" />
         </div>
 
-        <h3 className="font-display font-black text-2xl tracking-wider" style={{ color: 'var(--text-main)' }}>
+        <h3 className="font-display font-black text-xl tracking-wider leading-tight" style={{ color: 'var(--text-main)' }}>
           XO ARENA
         </h3>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs mb-3.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
           {isEntryGate
             ? 'Choose how you want to enter the arena'
             : tab === 'signin'
-              ? 'Sign in to save progress & stats'
+              ? 'Sign in to save progress & play online'
               : 'Create an account to join the arena'}
         </p>
 
         {/* Tab switch */}
         <div
-          className="w-full flex p-1 rounded-xl border mb-4"
+          className="w-full flex p-1 rounded-xl border mb-3.5"
           style={{
             backgroundColor: 'var(--bg-surface-elevated)',
             borderColor: 'var(--border-subtle)'
@@ -127,7 +149,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               setTab('signin');
               setErrorMsg('');
             }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === 'signin'
                 ? 'bg-[var(--accent-primary)] text-white shadow-sm'
                 : 'text-slate-400'
@@ -142,7 +164,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               setTab('register');
               setErrorMsg('');
             }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               tab === 'register'
                 ? 'bg-[var(--accent-primary)] text-white shadow-sm'
                 : 'text-slate-400'
@@ -153,17 +175,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="w-full mb-3 p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs text-left">
+          <div className="w-full mb-3 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs text-left font-medium">
             {errorMsg}
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 w-full text-left">
+        {/* Form - 16px (text-base) inputs prevent iPhone Safari auto-zoom */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 w-full text-left" noValidate>
           {tab === 'register' && (
             <>
               <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
                   Full Name
                 </label>
                 <input
@@ -172,10 +194,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   autoComplete="name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                  placeholder="e.g. PB ANMOL"
+                  placeholder="e.g. PBX"
                   maxLength={20}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none font-semibold"
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-base outline-none font-semibold"
                   style={{
                     backgroundColor: 'var(--bg-surface-elevated)',
                     borderColor: 'var(--border-subtle)',
@@ -185,7 +206,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
                   Choose Avatar Emoji
                 </label>
                 <div className="grid grid-cols-6 gap-1.5 p-2 rounded-xl border bg-[var(--bg-surface-elevated)] border-[var(--border-subtle)]">
@@ -194,7 +215,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       key={emoji}
                       type="button"
                       onClick={() => setSelectedEmoji(emoji)}
-                      className={`h-8 rounded-lg flex items-center justify-center text-lg transition-transform hover:scale-110 active:scale-90 ${
+                      className={`h-8 rounded-lg flex items-center justify-center text-lg transition-transform active:scale-90 ${
                         selectedEmoji === emoji
                           ? 'border-2 border-[var(--accent-primary)] bg-[var(--bg-card)] shadow-sm'
                           : 'border border-transparent'
@@ -209,7 +230,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           <div>
-            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+            <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
               Email Address
             </label>
             <input
@@ -222,9 +243,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value.replace(/\s+/g, ''))}
-              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               placeholder="name@example.com"
-              className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+              className="w-full px-3.5 py-2.5 rounded-xl border text-base outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',
@@ -234,30 +254,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-slate-400 block mb-1">
+            <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
               Password
             </label>
-            <input
-              type="password"
-              name="password"
-              autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-              placeholder="Minimum 6 characters"
-              className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
-              style={{
-                backgroundColor: 'var(--bg-surface-elevated)',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-main)'
-              }}
-            />
+            <div className="relative flex items-center">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 6 characters"
+                className="w-full pl-3.5 pr-11 py-2.5 rounded-xl border text-base outline-none"
+                style={{
+                  backgroundColor: 'var(--bg-surface-elevated)',
+                  borderColor: 'var(--border-subtle)',
+                  color: 'var(--text-main)'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 px-1.5 py-1 text-sm opacity-70 hover:opacity-100 cursor-pointer"
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3 rounded-xl text-white font-bold text-xs shadow-md transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="w-full mt-1.5 py-3 rounded-xl text-white font-bold text-sm shadow-md transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
             style={{ backgroundColor: 'var(--accent-primary)' }}
           >
             {loading ? 'Processing...' : tab === 'signin' ? 'Sign In' : 'Create Account'}
@@ -265,12 +294,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </form>
 
         <div className="flex items-center gap-2 w-full my-3">
-          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-          <span className="text-[11px] text-slate-400 font-semibold uppercase">or</span>
-          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+          <span className="text-[11px] font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
+            or
+          </span>
+          <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
         </div>
 
         <button
+          type="button"
           onClick={() => {
             sound.playClick();
             onContinueGuest();

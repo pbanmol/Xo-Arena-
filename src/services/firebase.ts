@@ -32,6 +32,7 @@ import {
   getDatabase,
   ref,
   set,
+  get,
   onValue,
   onDisconnect
 } from 'firebase/database';
@@ -58,16 +59,23 @@ export const rtdb = getDatabase(app);
 // State tracking
 let presenceHeartbeat: any = null;
 
+const OWNER_EMAILS = ['pbanmol025@gmail.com', 'anmolpreetsingh47902@gmail.com'];
+
+function isOwnerAccount(email?: string | null): boolean {
+  if (!email) return false;
+  return OWNER_EMAILS.includes(email.trim().toLowerCase());
+}
+
 /**
- * Sequential Incremental UID Generator (1, 2, 3...)
- * Every new registered player gets the next sequential integer as their XO Arena UID!
+ * Sequential Incremental UID Generator (2, 3, 4...)
+ * UID 1 is reserved for the Arena creator (PBX); all other registered players get unique sequential IDs.
  */
 export async function getNextServerNumericUid(): Promise<number> {
   const counterRef = doc(db, 'counters', 'players');
   try {
     const nextNum = await runTransaction(db, async (tx) => {
       const snap = await tx.get(counterRef);
-      let current = 3; // Ensure baseline starts at 3+ since 1 (Anmol) and 2, 3 are reserved
+      let current = 1;
       if (snap.exists() && typeof snap.data().currentUid === 'number') {
         current = Math.max(current, snap.data().currentUid);
       }
@@ -77,7 +85,7 @@ export async function getNextServerNumericUid(): Promise<number> {
     });
     return nextNum;
   } catch {
-    return storage.getNextNumericUid();
+    return Math.max(2, storage.getNextNumericUid());
   }
 }
 
@@ -263,89 +271,40 @@ export function setupPresence(user: User, profile: UserProfile) {
 }
 
 /**
- * Locks permanent, immutable numeric UIDs for registered players once and for all.
- * Current user (Anmol / YOU) is permanently locked as UID 1,
- * and other registered players are locked as 2, 3...
- * Also permanently repairs any corrupted duplicate UIDs in Firestore.
+ * Ensures the currently signed-in registered user has a permanent, valid numeric UID
+ * without violating Firestore security rules by writing to other users' documents.
  */
 export async function stabilizePermanentPlayerUids(): Promise<void> {
-  const currentUid = auth.currentUser?.uid;
-  if (!currentUid || auth.currentUser?.isAnonymous) return;
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) return;
 
   try {
-    const snap = await getDocs(collection(db, 'users'));
-    if (snap.empty) return;
+    const myRef = doc(db, 'users', user.uid);
+    const snap = await getDoc(myRef);
+    const owner = isOwnerAccount(user.email);
 
-    const registeredDocs: { id: string; name: string; currentNum: number }[] = [];
-    const batch = writeBatch(db);
-    let needsCommit = false;
+    if (snap.exists()) {
+      const existingNum = Number(snap.data().numericUid || 0);
+      let desiredNum = existingNum;
 
-    snap.forEach((d) => {
-      const data = d.data();
-      if (d.id === currentUid) {
-        registeredDocs.push({
-          id: d.id,
-          name: data.displayName || 'Player',
-          currentNum: Number(data.numericUid || 0)
-        });
-      } else if (
-        data.displayName === 'PB Player' ||
-        data.displayName === 'Anmol' ||
-        data.isGuest ||
-        data.isFake ||
-        !data.displayName
-      ) {
-        // PERMANENTLY PURGE THE OLD DUMMY / ANONYMOUS TEST ACCOUNTS FROM FIRESTORE!
-        batch.delete(d.ref);
-        needsCommit = true;
-      } else {
-        registeredDocs.push({
-          id: d.id,
-          name: data.displayName || 'Player',
-          currentNum: Number(data.numericUid || 0)
-        });
+      if (owner) {
+        desiredNum = 1;
+      } else if (!existingNum || existingNum < 2) {
+        desiredNum = await getNextServerNumericUid();
       }
-    });
 
-    // 1. Current user (Anmol / YOU) is ALWAYS permanently UID 1
-    const myDoc = registeredDocs.find((u) => u.id === currentUid);
-    if (myDoc && myDoc.currentNum !== 1) {
-      batch.update(doc(db, 'users', currentUid), {
-        numericUid: 1,
-        updatedAt: serverTimestamp()
-      });
-      needsCommit = true;
-    }
-
-    // Update local profile too
-    const prof = storage.getProfile();
-    if (prof.numericUid !== 1) {
-      prof.numericUid = 1;
-      storage.saveProfile(prof);
-    }
-
-    // 2. Any legitimate other users who register in future with email get sequential unique numbers starting from 2
-    const otherDocs = registeredDocs.filter((u) => u.id !== currentUid);
-    otherDocs.forEach((u, index) => {
-      const targetUid = index + 2;
-      if (u.currentNum !== targetUid) {
-        batch.update(doc(db, 'users', u.id), {
-          numericUid: targetUid,
+      if (desiredNum !== existingNum) {
+        await updateDoc(myRef, {
+          numericUid: desiredNum,
           updatedAt: serverTimestamp()
         });
-        needsCommit = true;
       }
-    });
 
-    // 3. Counter in sync
-    const maxAssigned = Math.max(1, registeredDocs.length);
-    batch.set(doc(db, 'counters', 'players'), {
-      currentUid: maxAssigned
-    }, { merge: true });
-    needsCommit = true;
-
-    if (needsCommit) {
-      await batch.commit();
+      const prof = storage.getProfile(user.uid);
+      if (prof.numericUid !== desiredNum) {
+        prof.numericUid = desiredNum;
+        storage.saveProfile(prof);
+      }
     }
   } catch (e) {
     console.warn('Permanent UID sync notice:', e);
@@ -361,6 +320,7 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
     return profile;
   }
   const uid = auth.currentUser.uid;
+  const owner = isOwnerAccount(auth.currentUser.email);
   const userRef = doc(db, 'users', uid);
 
   try {
@@ -370,24 +330,31 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
       const totalXp = Math.max(Number(profile.xp || 0), Number(data.xp || 0));
       const levelCalc = calculateLevelInfo(totalXp);
 
-      // Ensure valid, unique numericUid - current user is always 1
-      let finalNumericUid = Number(data.numericUid || 0);
-      if (finalNumericUid !== 1) {
+      // Keep each user's unique numericUid; owner is permanently 1
+      let finalNumericUid = Number(data.numericUid || profile.numericUid || 0);
+      if (owner) {
         finalNumericUid = 1;
+      } else if (!finalNumericUid || finalNumericUid < 2) {
+        finalNumericUid = await getNextServerNumericUid();
       }
 
       let finalAvatarUrl: string | null = null;
-      if (profile.avatarUrl !== undefined) {
+      if (isExplicitUpdate || profile.avatarUrl !== undefined) {
         finalAvatarUrl = profile.avatarUrl;
       } else if (data.avatarUrl !== undefined) {
         finalAvatarUrl = data.avatarUrl;
       }
 
-      const finalDisplayName = profile.displayName?.trim() || data.displayName || 'Player';
-      const finalAvatarEmoji = profile.avatarEmoji || data.avatarEmoji || '🤖';
+      const finalDisplayName = isExplicitUpdate
+        ? (profile.displayName?.trim() || data.displayName || 'Player')
+        : (data.displayName?.trim() || profile.displayName?.trim() || 'Player');
+      const finalAvatarEmoji = isExplicitUpdate
+        ? (profile.avatarEmoji || data.avatarEmoji || '🤖')
+        : (data.avatarEmoji || profile.avatarEmoji || '🤖');
 
       const updated: UserProfile = {
         ...profile,
+        uid,
         numericUid: finalNumericUid,
         displayName: finalDisplayName,
         avatarUrl: finalAvatarUrl,
@@ -400,9 +367,9 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
         matches: Math.max(Number(profile.matches || 0), Number(data.matches || 0)),
         xp: totalXp,
         level: levelCalc.level,
-        streak: Number(data.streak || profile.streak || 0),
+        streak: Number(profile.streak ?? data.streak ?? 0),
         bestStreak: Math.max(Number(profile.bestStreak || 0), Number(data.bestStreak || 0)),
-        blockedUids: Array.isArray(data.blockedUids) ? data.blockedUids : profile.blockedUids
+        blockedUids: Array.isArray(data.blockedUids) ? data.blockedUids : (profile.blockedUids || [])
       };
 
       await setDoc(userRef, {
@@ -427,12 +394,13 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
 
       return updated;
     } else {
-      const assignedUid = 1;
+      const assignedUid = owner ? 1 : await getNextServerNumericUid();
       const totalXp = Number(profile.xp || 0);
       const levelCalc = calculateLevelInfo(totalXp);
 
       const newProf: UserProfile = {
         ...profile,
+        uid,
         numericUid: assignedUid,
         isGuest: false,
         level: levelCalc.level
@@ -466,41 +434,57 @@ export async function syncUserProfile(profile: UserProfile, isExplicitUpdate: bo
   }
 }
 
+function parseOnlinePlayersSnapshot(val: Record<string, any> | null): OnlinePlayer[] {
+  const safeVal = val || {};
+  const now = Date.now();
+  const list: OnlinePlayer[] = [];
+
+  Object.entries(safeVal).forEach(([uid, data]: [string, any]) => {
+    if (
+      data &&
+      data.isOnline === true &&
+      (now - Number(data.updatedAt || data.lastSeen || 0)) < 75000 &&
+      data.displayName
+    ) {
+      list.push({
+        uid,
+        numericUid: Number(data.numericUid || 1),
+        displayName: data.displayName,
+        avatarUrl: data.avatarUrl || null,
+        avatarEmoji: data.avatarEmoji || '🤖',
+        isOnline: true,
+        level: Number(data.level || 1),
+        lastSeen: data.lastSeen
+      });
+    }
+  });
+
+  return list;
+}
+
 /**
  * Listen to list of active online players.
- * Only real connected players with active heartbeat (< 65s) appear. No fake users!
+ * Only real connected players with active heartbeat (< 75s) appear. No fake users!
  */
-export function listenToOnlinePlayers(currentUid: string, onUpdate: (players: OnlinePlayer[]) => void): Unsubscribe {
+export function listenToOnlinePlayers(_currentUid: string, onUpdate: (players: OnlinePlayer[]) => void): Unsubscribe {
   const statusRef = ref(rtdb, '/status');
   return onValue(statusRef, (snapshot) => {
-    const val = snapshot.val() || {};
-    const now = Date.now();
-    const list: OnlinePlayer[] = [];
-
-    Object.entries(val).forEach(([uid, data]: [string, any]) => {
-      if (
-        data &&
-        data.isOnline === true &&
-        (now - Number(data.updatedAt || data.lastSeen || 0)) < 65000 &&
-        data.displayName
-      ) {
-        list.push({
-          uid,
-          numericUid: Number(data.numericUid || 1),
-          displayName: data.displayName,
-          avatarUrl: data.avatarUrl || null,
-          avatarEmoji: data.avatarEmoji || '🤖',
-          isOnline: true,
-          level: Number(data.level || 1),
-          lastSeen: data.lastSeen
-        });
-      }
-    });
-
-    onUpdate(list);
+    onUpdate(parseOnlinePlayersSnapshot(snapshot.val()));
   }, (err) => {
     console.warn('Online players notice:', err);
   });
+}
+
+/**
+ * Explicitly fetch latest active online players from RTDB
+ */
+export async function fetchOnlinePlayersOnce(): Promise<OnlinePlayer[]> {
+  try {
+    const snap = await get(ref(rtdb, '/status'));
+    return parseOnlinePlayersSnapshot(snap.val());
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -610,171 +594,295 @@ export async function searchUserByNumericUidOrName(searchTerm: string): Promise<
 }
 
 /**
- * CONCURRENT MATCHMAKING QUEUE:
- * Pairs 2 players automatically in parallel whenever they click Quick Match
+ * REAL-TIME ATOMIC QUICK MATCHMAKING:
+ * Runs directly on the `matches` collection (status: 'waiting_quick') so it works
+ * immediately with standard match rules, needs zero composite indexes, prevents
+ * simultaneous-click deadlocks via deterministic tie-breaking, and ignores stale tickets.
  */
 export async function joinMatchmakingQueue(
   profile: UserProfile,
   onMatched: (matchId: string, role: Player) => void,
   onStatusChange: (status: string) => void
 ) {
-  if (!auth.currentUser) throw new Error('Not authenticated');
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
+    throw new Error('Please sign in with an account to use Quick Match.');
+  }
+
   const uid = auth.currentUser.uid;
-  const queueColl = collection(db, 'matchmaking_queue');
-  const myQueueDoc = doc(db, 'matchmaking_queue', uid);
-  const sessionId = `${uid}_${Date.now()}`;
-  const deadline = Date.now() + 50000;
+  const matchesColl = collection(db, 'matches');
+  const waitingQuery = query(matchesColl, where('status', '==', 'waiting_quick'), limit(25));
+  const STALE_WINDOW_MS = 50000;
 
   let hasMatched = false;
-  let pollingTimer: any = null;
+  let isCancelled = false;
+  let isPairing = false;
+  let myMatchRef: ReturnType<typeof doc> | null = null;
+  let myMatchId: string | null = null;
+  let myQueuedAt = Date.now();
 
-  const cancelQueue = async () => {
+  let unsubMyMatch: Unsubscribe | null = null;
+  let unsubWaiting: Unsubscribe | null = null;
+  let pollingTimer: any = null;
+  let heartbeatTimer: any = null;
+
+  const cleanupListeners = () => {
     if (pollingTimer) {
       clearInterval(pollingTimer);
       pollingTimer = null;
     }
-    try {
-      const snap = await getDoc(myQueueDoc);
-      if (snap.exists() && snap.data().sessionId === sessionId && snap.data().status === 'waiting') {
-        await deleteDoc(myQueueDoc);
-      }
-    } catch {
-      // ignore
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+    if (unsubMyMatch) {
+      unsubMyMatch();
+      unsubMyMatch = null;
+    }
+    if (unsubWaiting) {
+      unsubWaiting();
+      unsubWaiting = null;
     }
   };
 
-  await setDoc(myQueueDoc, {
-    uid,
-    numericUid: profile.numericUid || 1,
-    sessionId,
-    displayName: profile.displayName || 'Player',
-    status: 'waiting',
-    queuedAt: Date.now(),
-    expiresAt: deadline,
-    matchId: null,
-    opponentUid: null,
-    role: null,
-    timestamp: serverTimestamp()
-  });
+  const finishMatch = (matchId: string, role: Player) => {
+    if (hasMatched || isCancelled) return;
+    hasMatched = true;
+    cleanupListeners();
+    onMatched(matchId, role);
+  };
 
-  const unsubMyQueue = onSnapshot(
-    myQueueDoc,
-    (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data();
-      if (data.sessionId === sessionId && data.status === 'matched' && data.matchId) {
-        hasMatched = true;
-        if (pollingTimer) clearInterval(pollingTimer);
-        unsubMyQueue();
-        unsubColl();
-        onMatched(data.matchId, data.role || 'X');
-      }
-    },
-    (err) => {
-      console.warn('Queue listener notice:', err.message);
-    }
-  );
-
-  const tryPair = async () => {
-    if (hasMatched) return;
+  const deleteMyWaitingDoc = async () => {
+    if (!myMatchRef) return;
+    const refToDelete = myMatchRef;
     try {
-      const q = query(queueColl, where('status', '==', 'waiting'), limit(30));
-      const waitingSnaps = await getDocs(q);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(refToDelete);
+        if (snap.exists() && snap.data().status === 'waiting_quick' && !snap.data().playerOUid) {
+          tx.delete(refToDelete);
+        }
+      });
+    } catch {
+      // ignore cleanup failures
+    }
+  };
 
-      for (const cand of waitingSnaps.docs) {
-        if (cand.id === uid) continue;
-        const candData = cand.data();
-        if (candData.sessionId === sessionId) continue;
+  onStatusChange('Searching for opponent...');
 
-        const candidateRef = doc(db, 'matchmaking_queue', cand.id);
-        const matchRef = doc(collection(db, 'matches'));
-        const matchId = matchRef.id;
+  // Step 1: Remove any old stale waiting_quick docs belonging to this user and look for live opponents
+  try {
+    const existingSnaps = await getDocs(waitingQuery);
+    const now = Date.now();
+    const candidates: { id: string; queuedAt: number; playerXUid: string }[] = [];
 
-        const paired = await runTransaction(db, async (tx) => {
-          const [mySnap, theirSnap] = await Promise.all([tx.get(myQueueDoc), tx.get(candidateRef)]);
-          if (!mySnap.exists() || !theirSnap.exists()) return false;
+    for (const d of existingSnaps.docs) {
+      const data = d.data() as OnlineMatch;
+      const age = now - Number(data.queuedAt || 0);
+      if (data.playerXUid === uid) {
+        deleteDoc(d.ref).catch(() => {});
+        continue;
+      }
+      if (!data.playerOUid && age >= -15000 && age < STALE_WINDOW_MS) {
+        candidates.push({
+          id: d.id,
+          queuedAt: Number(data.queuedAt || 0),
+          playerXUid: data.playerXUid
+        });
+      }
+    }
 
-          const mine = mySnap.data();
-          const theirs = theirSnap.data();
+    // Prefer the longest-waiting live opponent
+    candidates.sort((a, b) => a.queuedAt - b.queuedAt);
 
-          if (mine.status !== 'waiting' || theirs.status !== 'waiting') return false;
-          if (mine.sessionId !== sessionId) return false;
+    for (const cand of candidates) {
+      if (hasMatched || isCancelled) break;
+      const candRef = doc(db, 'matches', cand.id);
+      try {
+        const claimed = await runTransaction(db, async (tx) => {
+          const snap = await tx.get(candRef);
+          if (!snap.exists()) return false;
+          const m = snap.data() as OnlineMatch;
+          if (m.status !== 'waiting_quick' || m.playerOUid || m.playerXUid === uid) return false;
+          if (Date.now() - Number(m.queuedAt || 0) >= STALE_WINDOW_MS) return false;
 
-          tx.update(myQueueDoc, {
-            status: 'matched',
-            matchId,
-            opponentUid: cand.id,
-            role: 'O',
-            matchedAt: serverTimestamp()
-          });
-
-          tx.update(candidateRef, {
-            status: 'matched',
-            matchId,
-            opponentUid: uid,
-            role: 'X',
-            matchedAt: serverTimestamp()
-          });
-
-          const newMatch: OnlineMatch = {
-            matchId,
-            playerXUid: cand.id,
-            playerXNumericUid: theirs.numericUid || 1,
-            playerXName: theirs.displayName || 'Player X',
+          tx.update(candRef, {
             playerOUid: uid,
             playerONumericUid: profile.numericUid || 1,
-            playerOName: mine.displayName || profile.displayName || 'Player O',
-            board: Array(9).fill(null),
-            currentTurn: 'X',
+            playerOName: profile.displayName || 'Player O',
             status: 'active',
-            winner: null,
-            round: 1,
-            restartRequests: [],
-            createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
-          };
-          tx.set(matchRef, newMatch);
+          });
           return true;
         });
 
-        if (paired) {
-          hasMatched = true;
-          if (pollingTimer) clearInterval(pollingTimer);
-          unsubMyQueue();
-          unsubColl();
-          onMatched(matchId, 'O');
-          return;
+        if (claimed) {
+          finishMatch(cand.id, 'O');
+          return { cancel: async () => {} };
+        }
+      } catch {
+        // Another player may have claimed this slot simultaneously; continue to next candidate
+      }
+    }
+  } catch (err) {
+    console.warn('Initial matchmaking scan notice:', err);
+  }
+
+  if (isCancelled || hasMatched) {
+    return { cancel: async () => {} };
+  }
+
+  // Step 2: No waiting opponent found yet -> create our own waiting ticket in `matches`
+  myMatchRef = doc(matchesColl);
+  myMatchId = myMatchRef.id;
+  myQueuedAt = Date.now();
+
+  const waitingMatch: OnlineMatch = {
+    matchId: myMatchId,
+    playerXUid: uid,
+    playerXNumericUid: profile.numericUid || 1,
+    playerXName: profile.displayName || 'Player X',
+    playerOUid: '',
+    playerOName: 'Searching...',
+    board: Array(9).fill(null),
+    currentTurn: 'X',
+    status: 'waiting_quick',
+    isQuickMatch: true,
+    queuedAt: myQueuedAt,
+    winner: null,
+    round: 1,
+    restartRequests: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  await setDoc(myMatchRef, waitingMatch);
+
+  // Step 3: Listen to our own match doc for an opponent claiming us
+  unsubMyMatch = onSnapshot(
+    myMatchRef,
+    (snap) => {
+      if (hasMatched || isCancelled || !snap.exists()) return;
+      const data = snap.data() as OnlineMatch;
+      if (data.status === 'active' && data.playerOUid && myMatchId) {
+        finishMatch(myMatchId, 'X');
+      }
+    },
+    (err) => {
+      console.warn('My matchmaking doc listener notice:', err.message);
+    }
+  );
+
+  // Step 4: Pair cleanly even if 2 players clicked Quick Match at the EXACT same millisecond
+  const tryPairWhileWaiting = async () => {
+    if (hasMatched || isCancelled || isPairing || !myMatchRef) return;
+    isPairing = true;
+    try {
+      const snap = await getDocs(waitingQuery);
+      const now = Date.now();
+      const others: { id: string; queuedAt: number; playerXUid: string }[] = [];
+
+      snap.forEach((d) => {
+        if (d.id === myMatchId) return;
+        const data = d.data() as OnlineMatch;
+        if (!data.playerXUid || data.playerXUid === uid || data.playerOUid) return;
+        const age = now - Number(data.queuedAt || 0);
+        if (age >= -15000 && age < STALE_WINDOW_MS) {
+          others.push({
+            id: d.id,
+            queuedAt: Number(data.queuedAt || 0),
+            playerXUid: data.playerXUid
+          });
+        }
+      });
+
+      others.sort((a, b) => a.queuedAt - b.queuedAt);
+
+      for (const other of others) {
+        if (hasMatched || isCancelled) break;
+
+        // Deterministic tie-breaker prevents simultaneous-click deadlocks:
+        // Higher UID claims immediately; lower UID also claims after 2.5s fallback if higher hasn't claimed yet.
+        const waitedLongEnough = now - myQueuedAt > 2500;
+        const shouldClaim = uid > other.playerXUid || waitedLongEnough;
+        if (!shouldClaim) continue;
+
+        const candRef = doc(db, 'matches', other.id);
+        const currentMyRef = myMatchRef;
+
+        try {
+          const paired = await runTransaction(db, async (tx) => {
+            const [mySnap, theirSnap] = await Promise.all([tx.get(currentMyRef), tx.get(candRef)]);
+            if (!mySnap.exists() || !theirSnap.exists()) return false;
+
+            const mine = mySnap.data() as OnlineMatch;
+            const theirs = theirSnap.data() as OnlineMatch;
+
+            // If someone ALREADY joined my match, abort so mySnapshot handles it
+            if (mine.status !== 'waiting_quick' || mine.playerOUid) return false;
+            if (theirs.status !== 'waiting_quick' || theirs.playerOUid) return false;
+            if (Date.now() - Number(theirs.queuedAt || 0) >= STALE_WINDOW_MS) return false;
+
+            // Atomically cancel my waiting ticket and join theirs as Player O
+            tx.delete(currentMyRef);
+            tx.update(candRef, {
+              playerOUid: uid,
+              playerONumericUid: profile.numericUid || 1,
+              playerOName: profile.displayName || 'Player O',
+              status: 'active',
+              updatedAt: serverTimestamp()
+            });
+            return true;
+          });
+
+          if (paired) {
+            finishMatch(other.id, 'O');
+            return;
+          }
+        } catch {
+          // Concurrent modification - retry on next tick or snapshot
         }
       }
     } catch (e) {
       console.warn('Pairing attempt notice:', e);
+    } finally {
+      isPairing = false;
     }
   };
 
-  const unsubColl = onSnapshot(
-    queueColl,
+  unsubWaiting = onSnapshot(
+    waitingQuery,
     () => {
-      if (!hasMatched) {
-        tryPair();
+      if (!hasMatched && !isCancelled) {
+        tryPairWhileWaiting();
       }
     },
     (err) => {
-      console.warn('Queue collection notice:', err.message);
+      console.warn('Waiting queue listener notice:', err.message);
     }
   );
 
-  await tryPair();
+  // Heartbeat keeps our waiting ticket fresh while searching
+  heartbeatTimer = setInterval(() => {
+    if (hasMatched || isCancelled || !myMatchRef) return;
+    updateDoc(myMatchRef, {
+      queuedAt: Date.now(),
+      updatedAt: serverTimestamp()
+    }).catch(() => {});
+  }, 10000);
+
+  // Fallback periodic pairing check
   pollingTimer = setInterval(() => {
-    if (!hasMatched) {
-      tryPair();
+    if (!hasMatched && !isCancelled) {
+      tryPairWhileWaiting();
     }
   }, 1500);
 
   return {
     cancel: async () => {
-      unsubMyQueue();
-      unsubColl();
-      await cancelQueue();
+      isCancelled = true;
+      cleanupListeners();
+      if (!hasMatched) {
+        await deleteMyWaitingDoc();
+      }
     }
   };
 }
@@ -908,11 +1016,17 @@ export async function joinPrivateRoom(roomCode: string, profile: UserProfile): P
 }
 
 /**
- * DIRECT CHALLENGES:
+ * DIRECT CHALLENGES (Bidirectional):
+ * Both Challenger (X) and Acceptor (O) enter the exact same match automatically!
  */
 export async function sendDirectChallenge(targetUid: string, profile: UserProfile): Promise<string> {
-  if (!auth.currentUser) throw new Error('Not authenticated');
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
+    throw new Error('Please sign in with an account to send challenges.');
+  }
   const uid = auth.currentUser.uid;
+  if (uid === targetUid) {
+    throw new Error('You cannot challenge yourself.');
+  }
   const challengeId = `CH_${uid}_${Date.now()}`;
   const challengeRef = doc(db, 'challenges', targetUid);
 
@@ -924,6 +1038,7 @@ export async function sendDirectChallenge(targetUid: string, profile: UserProfil
     senderAvatarEmoji: profile.avatarEmoji || '🤖',
     targetUid,
     status: 'pending',
+    matchId: null,
     createdAt: Date.now(),
     timestamp: serverTimestamp()
   });
@@ -945,7 +1060,9 @@ export function listenToIncomingChallenges(
         return;
       }
       const data = snap.data() as DirectChallenge;
-      if (data.status === 'pending' && data.senderUid !== myUid) {
+      const age = Date.now() - Number(data.createdAt || 0);
+      const isFresh = !data.createdAt || (age >= -30000 && age < 120000);
+      if (data.status === 'pending' && data.senderUid !== myUid && isFresh) {
         onChallenge(data);
       } else {
         onChallenge(null);
@@ -959,6 +1076,60 @@ export function listenToIncomingChallenges(
   );
 }
 
+/**
+ * Challenger listens to `challenges/{targetUid}` so when the opponent accepts,
+ * the challenger immediately enters the created match as Player X!
+ */
+export function listenToOutgoingChallenge(
+  targetUid: string,
+  challengeId: string,
+  onAccepted: (matchId: string) => void,
+  onDeclined: () => void,
+  onError?: (err: any) => void
+): Unsubscribe {
+  const challengeRef = doc(db, 'challenges', targetUid);
+  let settled = false;
+
+  return onSnapshot(
+    challengeRef,
+    (snap) => {
+      if (settled || !snap.exists()) return;
+      const data = snap.data() as DirectChallenge;
+      if (data.id !== challengeId) return;
+
+      if (data.status === 'accepted' && data.matchId) {
+        settled = true;
+        onAccepted(data.matchId);
+      } else if (data.status === 'rejected') {
+        settled = true;
+        onDeclined();
+      }
+    },
+    (err) => {
+      console.warn('Outgoing challenge listener notice:', err.message);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export async function cancelOutgoingChallenge(targetUid: string, challengeId: string) {
+  try {
+    const challengeRef = doc(db, 'challenges', targetUid);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(challengeRef);
+      if (snap.exists() && snap.data().id === challengeId && snap.data().status === 'pending') {
+        tx.update(challengeRef, {
+          status: 'rejected',
+          cancelledBySender: true,
+          updatedAt: serverTimestamp()
+        });
+      }
+    });
+  } catch {
+    // ignore
+  }
+}
+
 export async function acceptChallenge(challenge: DirectChallenge, myProfile: UserProfile): Promise<string> {
   if (!auth.currentUser) throw new Error('Not authenticated');
   const uid = auth.currentUser.uid;
@@ -969,7 +1140,7 @@ export async function acceptChallenge(challenge: DirectChallenge, myProfile: Use
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(challengeRef);
     if (!snap.exists() || snap.data().id !== challenge.id || snap.data().status !== 'pending') {
-      throw new Error('This challenge is no longer available.');
+      throw new Error('This challenge has expired or was cancelled.');
     }
 
     tx.set(matchRef, {
@@ -1002,10 +1173,14 @@ export async function acceptChallenge(challenge: DirectChallenge, myProfile: Use
 
 export async function declineChallenge(myUid: string) {
   const challengeRef = doc(db, 'challenges', myUid);
-  await updateDoc(challengeRef, {
-    status: 'rejected',
-    rejectedAt: serverTimestamp()
-  });
+  try {
+    await updateDoc(challengeRef, {
+      status: 'rejected',
+      rejectedAt: serverTimestamp()
+    });
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -1178,7 +1353,6 @@ export async function sendChatMessage(matchId: string, text: string, senderUid: 
  * LEADERBOARD
  * Strictly displays only real authenticated, registered user profiles.
  * Guests and mock accounts are completely excluded.
- * Ensures zero duplicate UIDs and locks Anmol (YOU) permanently as UID 1.
  */
 export function listenToLeaderboard(
   onUpdate: (players: UserProfile[]) => void,
@@ -1192,24 +1366,12 @@ export function listenToLeaderboard(
       const list: UserProfile[] = [];
       snapshot.forEach((d) => {
         const data = d.data();
-        const currentAuthUid = auth.currentUser?.uid;
 
-        // Immediately filter out and purge the old dummy test accounts from Firestore!
-        if (
-          d.id !== currentAuthUid &&
-          (data.displayName === 'PB Player' ||
-            (data.displayName === 'Anmol' && d.id !== currentAuthUid) ||
-            data.isGuest ||
-            data.isFake)
-        ) {
-          deleteDoc(d.ref).catch(() => {});
-          return;
-        }
-
-        // Strictly exclude guests and fake profiles
+        // Strictly exclude guests, fake, and disabled profiles (never attempt cross-user deletes)
         if (
           data.displayName &&
           data.displayName.trim().length > 0 &&
+          data.displayName !== 'PB Player' &&
           !data.isGuest &&
           !data.isFake &&
           !data.disabled
@@ -1249,39 +1411,19 @@ export function listenToLeaderboard(
       // Sort by level desc, xp desc, wins desc
       unique.sort((a, b) => b.level - a.level || b.xp - a.xp || b.wins - a.wins);
 
-      // GUARANTEE CLEAN, UNIQUE, PERMANENT SEQUENTIAL UIDs:
-      // Current user (Anmol / YOU) is permanently UID 1.
-      // Other players are permanently assigned unique numbers 2, 3...
-      const currentAuthUid = auth.currentUser?.uid;
-      const myEntry = currentAuthUid ? unique.find((p) => p.uid === currentAuthUid) : null;
-      if (myEntry) {
-        myEntry.numericUid = 1;
-        const myLocal = storage.getProfile();
-        if (myLocal.avatarUrl === null) {
-          myEntry.avatarUrl = null;
-        }
-        if (myLocal.avatarEmoji) {
-          myEntry.avatarEmoji = myLocal.avatarEmoji;
-        }
-      }
-
-      // Ensure no collision or duplicate UIDs for other entries
-      const usedNumericUids = new Set<number>([1]);
+      // Ensure every displayed entry has a clean unique numericUid
+      const usedNumericUids = new Set<number>();
       unique.forEach((p) => {
-        if (p.uid === currentAuthUid) {
-          p.numericUid = 1;
-          return;
-        }
-        // If p has no UID or has duplicate 1 or collision
-        if (!p.numericUid || usedNumericUids.has(p.numericUid)) {
-          // Find next available integer starting from 2
+        if (p.numericUid && p.numericUid >= 1 && !usedNumericUids.has(p.numericUid)) {
+          usedNumericUids.add(p.numericUid);
+        } else {
           let nextAvailable = 2;
           while (usedNumericUids.has(nextAvailable)) {
             nextAvailable++;
           }
           p.numericUid = nextAvailable;
+          usedNumericUids.add(nextAvailable);
         }
-        usedNumericUids.add(p.numericUid);
       });
 
       // Strictly Top 10 Competitors

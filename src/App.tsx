@@ -12,15 +12,18 @@ import {
   TabScreen,
   UserProfile
 } from './types/game';
-import { storage } from './services/storage';
+import { storage, calculateLevelInfo } from './services/storage';
 import { sound } from './services/sound';
 import { haptics } from './services/haptics';
+import { applySystemBarsTheme } from './services/systemBars';
 import { checkWinner, getAIMove } from './services/ai';
 import {
   acceptChallenge,
+  cancelOutgoingChallenge,
   createPrivateRoom,
   declineChallenge,
   exitOnlineMatch,
+  fetchOnlinePlayersOnce,
   initAuthListener,
   joinMatchmakingQueue,
   joinPrivateRoom,
@@ -29,6 +32,7 @@ import {
   listenToLeaderboard,
   listenToMatch,
   listenToOnlinePlayers,
+  listenToOutgoingChallenge,
   loginWithEmail,
   logOut,
   makeOnlineMove,
@@ -114,6 +118,26 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [restartRequestedByMe, setRestartRequestedByMe] = useState(false);
   const [hasRulesPermissionNotice, setHasRulesPermissionNotice] = useState(false);
+  const [outgoingChallenge, setOutgoingChallenge] = useState<{
+    id: string;
+    targetUid: string;
+    targetName: string;
+  } | null>(null);
+
+  // Refs to prevent listener leaks, stale closures, and duplicate round endings
+  const outgoingChallengeUnsubRef = useRef<(() => void) | null>(null);
+  const outgoingChallengeTimerRef = useRef<any>(null);
+  const privateRoomWaiterRef = useRef<(() => void) | null>(null);
+  const pendingRoomMatchIdRef = useRef<string | null>(null);
+  const completedRoundKeyRef = useRef<string | null>(null);
+  const prevOnlinePiecesRef = useRef<number>(0);
+  const moveInFlightRef = useRef<boolean>(false);
+  const aiMoveTimerRef = useRef<any>(null);
+  const lastIncomingChallengeIdRef = useRef<string | null>(null);
+  const profileRef = useRef<UserProfile>(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   // Modals
   const [resultModal, setResultModal] = useState<{
@@ -129,6 +153,12 @@ export default function App() {
   const [incomingChallenge, setIncomingChallenge] = useState<DirectChallenge | null>(null);
   const [localSetupOpen, setLocalSetupOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Helper: Toast
   const addToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
@@ -143,16 +173,14 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Sync theme attribute to document
+  // Sync theme, dark mode, and Android/iPhone system status & navigation bar colors automatically
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    storage.set('theme', theme);
-  }, [theme]);
-
-  useEffect(() => {
     document.documentElement.setAttribute('data-dark', isDark ? 'true' : 'false');
+    storage.set('theme', theme);
     storage.set('dark_mode', isDark);
-  }, [isDark]);
+    applySystemBarsTheme(theme, isDark);
+  }, [theme, isDark]);
 
   useEffect(() => {
     sound.enabled = soundEnabled;
@@ -163,6 +191,18 @@ export default function App() {
     haptics.enabled = hapticsEnabled;
     storage.set('haptics', hapticsEnabled);
   }, [hapticsEnabled]);
+
+  // Cleanup active matchmaking / challenge / room waiters on unmount
+  useEffect(() => {
+    return () => {
+      if (matchmakingTimerRef.current) clearInterval(matchmakingTimerRef.current);
+      if (matchmakingCancelRef.current) matchmakingCancelRef.current().catch(() => {});
+      if (outgoingChallengeUnsubRef.current) outgoingChallengeUnsubRef.current();
+      if (outgoingChallengeTimerRef.current) clearTimeout(outgoingChallengeTimerRef.current);
+      if (privateRoomWaiterRef.current) privateRoomWaiterRef.current();
+      if (aiMoveTimerRef.current) clearTimeout(aiMoveTimerRef.current);
+    };
+  }, []);
 
   // Auth & Presence Initialization
   useEffect(() => {
@@ -182,7 +222,7 @@ export default function App() {
             setHasChosenEntryMode(true);
           }
           try {
-            // Lock permanent, immutable UIDs once and for all (Anmol is permanently UID 1)
+            // Lock permanent, immutable UIDs once and for all (PBX is permanently UID 1)
             await stabilizePermanentPlayerUids();
 
             // Load user profile & sync with Firestore
@@ -253,8 +293,14 @@ export default function App() {
             declineChallenge(currentUser.uid);
             return;
           }
+          if (lastIncomingChallengeIdRef.current !== challenge.id) {
+            lastIncomingChallengeIdRef.current = challenge.id;
+            sound.playChallengeReceived();
+            haptics.trigger([40, 60, 40]);
+          }
           setIncomingChallenge(challenge);
         } else {
+          lastIncomingChallengeIdRef.current = null;
           setIncomingChallenge(null);
         }
       },
@@ -278,47 +324,77 @@ export default function App() {
     const unsubMatch = listenToMatch(activeOnlineMatchId, (matchData) => {
       if (!matchData) {
         addToast('Match is no longer available.', 'error');
-        handleExitOnline();
+        handleExitOnline(false);
         return;
       }
 
       if (matchData.status === 'abandoned') {
         const leftByMe = matchData.exitedBy === currentUser?.uid;
         addToast(leftByMe ? 'You left the match.' : 'Opponent has disconnected or left.', 'info');
-        handleExitOnline();
+        handleExitOnline(false);
         return;
       }
 
+      // Play move sound when a new move appears on the online board
+      const nextBoard = Array.isArray(matchData.board) ? matchData.board : Array(9).fill(null);
+      const piecesCount = nextBoard.filter((c) => c !== null).length;
+      if (piecesCount > prevOnlinePiecesRef.current && piecesCount > 0) {
+        const lastMovedSymbol: Player = matchData.currentTurn === 'X' ? 'O' : 'X';
+        sound.playMove(lastMovedSymbol);
+      }
+      prevOnlinePiecesRef.current = piecesCount;
+
       // Update board & turn
-      setBoard(matchData.board);
+      setBoard(nextBoard);
       setCurrentTurn(matchData.currentTurn);
       setWinningLine(matchData.winningLine || []);
-      setPlayerNames({
+      const nextNames = {
         X: matchData.playerXName || 'Player X',
         O: matchData.playerOName || 'Player O'
-      });
+      };
+      setPlayerNames(nextNames);
 
       if (matchData.roomCode) {
         setCurrentRoomCode(matchData.roomCode);
       }
 
-      // Check if opponent requested restart
+      // Check if I requested restart
       if (Array.isArray(matchData.restartRequests) && currentUser) {
         setRestartRequestedByMe(matchData.restartRequests.includes(currentUser.uid));
+      } else {
+        setRestartRequestedByMe(false);
       }
 
-      // Match Completion or Active Rematch
+      // Match Completion or Active Rematch (guarded so rematch updates never double-count!)
+      const roundKey = `${activeOnlineMatchId}_r${matchData.round || 1}`;
       if (matchData.status === 'completed') {
         setIsGameOver(true);
-        const won = myOnlineSymbol && matchData.winner === myOnlineSymbol;
-        const draw = matchData.winner === 'draw';
+        if (completedRoundKeyRef.current !== roundKey) {
+          completedRoundKeyRef.current = roundKey;
+          const effectiveSymbol: Player =
+            myOnlineSymbol || (matchData.playerXUid === currentUser?.uid ? 'X' : 'O');
+          const won = matchData.winner === effectiveSymbol;
+          const draw = matchData.winner === 'draw';
+          const opponentName = effectiveSymbol === 'X' ? nextNames.O : nextNames.X;
+          const winnerName =
+            matchData.winner && matchData.winner !== 'draw' ? nextNames[matchData.winner] : undefined;
 
-        handleMatchEnded(draw ? 'draw' : won ? 'win' : 'loss', matchData.winner || 'draw', 'Online Match');
+          handleMatchEnded(
+            draw ? 'draw' : won ? 'win' : 'loss',
+            matchData.winner || 'draw',
+            'Online Match',
+            opponentName,
+            winnerName,
+            piecesCount
+          );
+        }
       } else if (matchData.status === 'active') {
+        if (completedRoundKeyRef.current && completedRoundKeyRef.current !== roundKey) {
+          completedRoundKeyRef.current = null;
+        }
         setIsGameOver(false);
         setWinningLine([]);
         setResultModal((prev) => (prev.isOpen ? { isOpen: false, outcome: null, earnedXP: 0 } : prev));
-        setRestartRequestedByMe(false);
       }
     });
 
@@ -337,7 +413,15 @@ export default function App() {
   // GAMEPLAY LOGIC
   // ==========================================
 
+  const cancelPendingAIMove = () => {
+    if (aiMoveTimerRef.current) {
+      clearTimeout(aiMoveTimerRef.current);
+      aiMoveTimerRef.current = null;
+    }
+  };
+
   const startComputerMatch = () => {
+    cancelPendingAIMove();
     setGameMode('computer');
     setBoard(Array(9).fill(null));
     setCurrentTurn('X');
@@ -353,6 +437,7 @@ export default function App() {
   };
 
   const startLocalMatch = (nameX: string, nameO: string) => {
+    cancelPendingAIMove();
     setGameMode('local');
     setBoard(Array(9).fill(null));
     setCurrentTurn('X');
@@ -371,10 +456,22 @@ export default function App() {
     if (board[index] !== null || isGameOver) return;
 
     if (gameMode === 'online') {
-      if (!activeOnlineMatchId || !myOnlineSymbol || currentTurn !== myOnlineSymbol) return;
-      makeOnlineMove(activeOnlineMatchId, index, myOnlineSymbol);
+      if (!activeOnlineMatchId || !myOnlineSymbol || currentTurn !== myOnlineSymbol || moveInFlightRef.current) {
+        return;
+      }
+      moveInFlightRef.current = true;
+      makeOnlineMove(activeOnlineMatchId, index, myOnlineSymbol)
+        .catch(() => {
+          addToast('Move failed. Check connection.', 'error');
+        })
+        .finally(() => {
+          moveInFlightRef.current = false;
+        });
       return;
     }
+
+    // Prevent human tapping during AI's thinking turn
+    if (gameMode === 'computer' && currentTurn !== 'X') return;
 
     // Single Player or Local
     const newBoard = [...board];
@@ -410,9 +507,11 @@ export default function App() {
     const nextTurn = currentTurn === 'X' ? 'O' : 'X';
     setCurrentTurn(nextTurn);
 
-    // AI Response move
+    // AI Response move (tracked by ref so Restart/Undo/Exit cleanly cancels it)
     if (gameMode === 'computer' && nextTurn === 'O') {
-      setTimeout(() => {
+      cancelPendingAIMove();
+      aiMoveTimerRef.current = setTimeout(() => {
+        aiMoveTimerRef.current = null;
         executeAIMove(newBoard);
       }, 350);
     }
@@ -446,7 +545,10 @@ export default function App() {
   const handleMatchEnded = (
     result: 'win' | 'loss' | 'draw',
     winner: Player | 'draw',
-    modeDescription: string
+    modeDescription: string,
+    opponentOverride?: string,
+    winnerNameOverride?: string,
+    movesOverride?: number
   ) => {
     // Sound & Haptic
     if (result === 'win') {
@@ -461,7 +563,7 @@ export default function App() {
     let earnedXP = 15;
     if (result === 'win') earnedXP += 45;
     if (result === 'draw') earnedXP += 15;
-    if (modeDescription.includes('Hard')) earnedXP += 20;
+    if (modeDescription.includes('Hard') || modeDescription.includes('hard')) earnedXP += 20;
 
     // Update Scores in Arena
     if (winner !== 'draw') {
@@ -476,10 +578,11 @@ export default function App() {
       }));
     }
 
-    // Update Profile Stats
-    const updatedProf: UserProfile = { ...profile };
+    // Update Profile Stats using latest profileRef (consistent XP-based level everywhere)
+    const updatedProf: UserProfile = { ...profileRef.current };
     updatedProf.matches = (updatedProf.matches || 0) + 1;
     updatedProf.xp = (updatedProf.xp || 0) + earnedXP;
+    updatedProf.level = calculateLevelInfo(updatedProf.xp).level;
 
     if (result === 'win') {
       updatedProf.wins = (updatedProf.wins || 0) + 1;
@@ -488,7 +591,6 @@ export default function App() {
 
       if (gameMode === 'computer') {
         updatedProf.aiWins = (updatedProf.aiWins || 0) + 1;
-        updatedProf.level = 1 + updatedProf.aiWins;
       }
     } else if (result === 'loss') {
       updatedProf.losses = (updatedProf.losses || 0) + 1;
@@ -500,7 +602,7 @@ export default function App() {
 
     setProfile(updatedProf);
     storage.saveProfile(updatedProf);
-    if (currentUser) {
+    if (currentUser && !currentUser.isAnonymous) {
       syncUserProfile(updatedProf);
     }
 
@@ -508,10 +610,10 @@ export default function App() {
     const record: MatchRecord = {
       id: 'M_' + Date.now().toString(36),
       date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      opponent: playerNames.O,
+      opponent: opponentOverride || playerNames.O,
       mode: modeDescription,
       result: result === 'win' ? 'Win' : result === 'loss' ? 'Loss' : 'Draw',
-      moves: moveHistory.length + 1
+      moves: movesOverride ?? moveHistory.length + 1
     };
     storage.addHistory(record);
     setHistory(storage.getHistory());
@@ -523,7 +625,7 @@ export default function App() {
     setResultModal({
       isOpen: true,
       outcome: result,
-      winnerName: winner !== 'draw' ? playerNames[winner] : undefined,
+      winnerName: winnerNameOverride ?? (winner !== 'draw' ? playerNames[winner] : undefined),
       earnedXP
     });
   };
@@ -542,10 +644,10 @@ export default function App() {
     if (prof.draws >= 1 && storage.unlockAchievement('first_draw')) {
       newlyUnlocked.push('Stalemate Master');
     }
-    if (mode.includes('Hard') && result === 'win' && storage.unlockAchievement('beat_hard_ai')) {
+    if (mode.toLowerCase().includes('hard') && result === 'win' && storage.unlockAchievement('beat_hard_ai')) {
       newlyUnlocked.push('Cyber Conqueror');
     }
-    if (mode.includes('Online') && result === 'win' && storage.unlockAchievement('online_victor')) {
+    if (mode.toLowerCase().includes('online') && result === 'win' && storage.unlockAchievement('online_victor')) {
       newlyUnlocked.push('Global Dominator');
     }
 
@@ -561,6 +663,7 @@ export default function App() {
       return;
     }
     if (moveHistory.length === 0 || isGameOver) return;
+    cancelPendingAIMove();
 
     if (gameMode === 'computer') {
       // Undo both AI move and Player move
@@ -599,6 +702,7 @@ export default function App() {
       return;
     }
 
+    cancelPendingAIMove();
     setBoard(Array(9).fill(null));
     setCurrentTurn('X');
     setWinningLine([]);
@@ -607,14 +711,67 @@ export default function App() {
     setResultModal({ isOpen: false, outcome: null, earnedXP: 0 });
   };
 
-  const handleExitOnline = () => {
-    if (activeOnlineMatchId && currentUser) {
+  const clearOutgoingChallenge = useCallback((cancelRemote: boolean = false) => {
+    if (outgoingChallengeUnsubRef.current) {
+      outgoingChallengeUnsubRef.current();
+      outgoingChallengeUnsubRef.current = null;
+    }
+    if (outgoingChallengeTimerRef.current) {
+      clearTimeout(outgoingChallengeTimerRef.current);
+      outgoingChallengeTimerRef.current = null;
+    }
+    setOutgoingChallenge((prev) => {
+      if (cancelRemote && prev) {
+        cancelOutgoingChallenge(prev.targetUid, prev.id).catch(() => {});
+      }
+      return null;
+    });
+  }, []);
+
+  const clearPendingPrivateRoom = useCallback((cancelRemote: boolean = false) => {
+    if (privateRoomWaiterRef.current) {
+      privateRoomWaiterRef.current();
+      privateRoomWaiterRef.current = null;
+    }
+    if (cancelRemote && pendingRoomMatchIdRef.current && currentUser) {
+      exitOnlineMatch(pendingRoomMatchIdRef.current, currentUser.uid).catch(() => {});
+    }
+    pendingRoomMatchIdRef.current = null;
+    setCreatedRoomCode(null);
+  }, [currentUser]);
+
+  const enterOnlineArena = useCallback((matchId: string, symbol: Player, roomCode?: string) => {
+    completedRoundKeyRef.current = null;
+    prevOnlinePiecesRef.current = 0;
+    moveInFlightRef.current = false;
+    setBoard(Array(9).fill(null));
+    setCurrentTurn('X');
+    setWinningLine([]);
+    setIsGameOver(false);
+    setScores({ X: 0, O: 0, draws: 0 });
+    setChatMessages([]);
+    setRestartRequestedByMe(false);
+    setResultModal({ isOpen: false, outcome: null, earnedXP: 0 });
+    setCurrentRoomCode(roomCode);
+    setMyOnlineSymbol(symbol);
+    setActiveOnlineMatchId(matchId);
+    setGameMode('online');
+    setActiveTab('arena');
+  }, []);
+
+  const handleExitOnline = (notifyServer: boolean = true) => {
+    if (notifyServer && activeOnlineMatchId && currentUser) {
       exitOnlineMatch(activeOnlineMatchId, currentUser.uid);
     }
+    completedRoundKeyRef.current = null;
+    prevOnlinePiecesRef.current = 0;
+    moveInFlightRef.current = false;
     setActiveOnlineMatchId(null);
     setMyOnlineSymbol(undefined);
     setCurrentRoomCode(undefined);
+    setChatMessages([]);
     setRestartRequestedByMe(false);
+    setResultModal({ isOpen: false, outcome: null, earnedXP: 0 });
     setGameMode('computer');
     setActiveTab('online');
   };
@@ -625,35 +782,47 @@ export default function App() {
 
   const handleStartMatchmaking = async () => {
     if (isMatchmaking) return;
+
+    // Cancel any other pending invite/room before entering Quick Match queue
+    clearOutgoingChallenge(true);
+    clearPendingPrivateRoom(true);
+
+    haptics.trigger([30, 40, 30]);
     setIsMatchmaking(true);
     setMatchmakingTime(0);
+    addToast('Quick Match started! Searching for opponent...');
 
+    if (matchmakingTimerRef.current) {
+      clearInterval(matchmakingTimerRef.current);
+    }
     matchmakingTimerRef.current = setInterval(() => {
       setMatchmakingTime((t) => t + 1);
     }, 1000);
 
     try {
       const queueHandler = await joinMatchmakingQueue(
-        profile,
+        profileRef.current,
         (matchId, role) => {
-          clearInterval(matchmakingTimerRef.current);
+          if (matchmakingTimerRef.current) {
+            clearInterval(matchmakingTimerRef.current);
+            matchmakingTimerRef.current = null;
+          }
+          matchmakingCancelRef.current = null;
           setIsMatchmaking(false);
           sound.playJoin();
+          haptics.trigger([40, 40, 80]);
           addToast('Match found! Entering arena...', 'success');
-
-          setActiveOnlineMatchId(matchId);
-          setMyOnlineSymbol(role);
-          setGameMode('online');
-          setActiveTab('arena');
+          enterOnlineArena(matchId, role);
         },
-        (statusText) => {
-          // status update
-        }
+        () => {}
       );
 
       matchmakingCancelRef.current = queueHandler.cancel;
     } catch (err: any) {
-      clearInterval(matchmakingTimerRef.current);
+      if (matchmakingTimerRef.current) {
+        clearInterval(matchmakingTimerRef.current);
+        matchmakingTimerRef.current = null;
+      }
       setIsMatchmaking(false);
       addToast(`Matchmaking error: ${err.message}`, 'error');
     }
@@ -662,9 +831,11 @@ export default function App() {
   const handleCancelMatchmaking = async () => {
     if (matchmakingCancelRef.current) {
       await matchmakingCancelRef.current();
+      matchmakingCancelRef.current = null;
     }
     if (matchmakingTimerRef.current) {
       clearInterval(matchmakingTimerRef.current);
+      matchmakingTimerRef.current = null;
     }
     setIsMatchmaking(false);
     addToast('Matchmaking cancelled.');
@@ -672,23 +843,29 @@ export default function App() {
 
   const handleCreatePrivateRoom = async () => {
     try {
-      const { matchId, roomCode } = await createPrivateRoom(profile);
+      clearPendingPrivateRoom(true);
+      clearOutgoingChallenge(true);
+
+      const { matchId, roomCode } = await createPrivateRoom(profileRef.current);
+      pendingRoomMatchIdRef.current = matchId;
       setCreatedRoomCode(roomCode);
-      setCurrentRoomCode(roomCode);
-      setActiveOnlineMatchId(matchId);
-      setMyOnlineSymbol('X');
       addToast(`Room ${roomCode} created! Share with your friend.`);
 
-      // Listen for friend joining
-      listenToMatch(matchId, (matchData) => {
-        if (matchData && matchData.status === 'active' && matchData.playerOUid) {
-          setCreatedRoomCode(null);
+      // Listen for friend joining and immediately unsubscribe once joined
+      const unsubWaiter = listenToMatch(matchId, (matchData) => {
+        if (!matchData || matchData.status === 'abandoned') {
+          clearPendingPrivateRoom(false);
+          return;
+        }
+        if (matchData.status === 'active' && matchData.playerOUid) {
+          clearPendingPrivateRoom(false);
           sound.playJoin();
+          haptics.trigger([40, 40, 80]);
           addToast(`${matchData.playerOName} joined your room!`, 'success');
-          setGameMode('online');
-          setActiveTab('arena');
+          enterOnlineArena(matchId, 'X', roomCode);
         }
       });
+      privateRoomWaiterRef.current = unsubWaiter;
     } catch (err: any) {
       addToast(`Failed to create room: ${err.message}`, 'error');
     }
@@ -696,15 +873,13 @@ export default function App() {
 
   const handleJoinPrivateRoom = async (code: string) => {
     try {
-      const matchId = await joinPrivateRoom(code, profile);
+      clearPendingPrivateRoom(true);
+      clearOutgoingChallenge(true);
+      const matchId = await joinPrivateRoom(code, profileRef.current);
       sound.playJoin();
+      haptics.trigger([40, 40, 80]);
       addToast('Joined private room!', 'success');
-
-      setActiveOnlineMatchId(matchId);
-      setMyOnlineSymbol('O');
-      setCurrentRoomCode(code);
-      setGameMode('online');
-      setActiveTab('arena');
+      enterOnlineArena(matchId, 'O', code.trim().toUpperCase());
     } catch (err: any) {
       addToast(err.message || 'Could not join room', 'error');
     }
@@ -712,8 +887,42 @@ export default function App() {
 
   const handleSendChallenge = async (targetUid: string, targetName: string) => {
     try {
-      await sendDirectChallenge(targetUid, profile);
-      addToast(`Challenge sent to ${targetName}! Waiting for response...`);
+      clearOutgoingChallenge(true);
+      clearPendingPrivateRoom(true);
+      if (isMatchmaking) {
+        await handleCancelMatchmaking();
+      }
+
+      sound.playChallengeSent();
+      haptics.trigger(30);
+
+      const challengeId = await sendDirectChallenge(targetUid, profileRef.current);
+      setOutgoingChallenge({ id: challengeId, targetUid, targetName });
+      addToast(`Challenge sent to ${targetName}! Waiting for acceptance...`);
+
+      // Listen on target's challenge doc so CHALLENGER ALSO enters the match immediately when accepted!
+      const unsubOut = listenToOutgoingChallenge(
+        targetUid,
+        challengeId,
+        (matchId) => {
+          clearOutgoingChallenge(false);
+          sound.playJoin();
+          haptics.trigger([40, 40, 80]);
+          addToast(`${targetName} accepted! Entering match...`, 'success');
+          enterOnlineArena(matchId, 'X');
+        },
+        () => {
+          clearOutgoingChallenge(false);
+          addToast(`${targetName} declined your challenge.`, 'info');
+        }
+      );
+      outgoingChallengeUnsubRef.current = unsubOut;
+
+      // Auto-expire unanswered challenge after 60 seconds
+      outgoingChallengeTimerRef.current = setTimeout(() => {
+        clearOutgoingChallenge(true);
+        addToast(`Challenge to ${targetName} expired.`, 'info');
+      }, 60000);
     } catch (err: any) {
       addToast(`Challenge failed: ${err.message}`, 'error');
     }
@@ -721,21 +930,25 @@ export default function App() {
 
   const handleAcceptChallenge = async (challenge: DirectChallenge) => {
     try {
-      const matchId = await acceptChallenge(challenge, profile);
+      clearOutgoingChallenge(true);
+      clearPendingPrivateRoom(true);
+      if (isMatchmaking) {
+        await handleCancelMatchmaking();
+      }
+
+      const matchId = await acceptChallenge(challenge, profileRef.current);
       sound.playJoin();
+      haptics.trigger([40, 40, 80]);
       setIncomingChallenge(null);
       addToast('Challenge accepted! Entering match...', 'success');
-
-      setActiveOnlineMatchId(matchId);
-      setMyOnlineSymbol('O');
-      setGameMode('online');
-      setActiveTab('arena');
+      enterOnlineArena(matchId, 'O');
     } catch (err: any) {
+      setIncomingChallenge(null);
       addToast(`Error: ${err.message}`, 'error');
     }
   };
 
-  const handleDeclineChallenge = async (challenge: DirectChallenge) => {
+  const handleDeclineChallenge = async (_challenge: DirectChallenge) => {
     if (currentUser) {
       await declineChallenge(currentUser.uid);
     }
@@ -870,12 +1083,19 @@ export default function App() {
             onCreatePrivateRoom={handleCreatePrivateRoom}
             onJoinPrivateRoom={handleJoinPrivateRoom}
             onSendChallenge={handleSendChallenge}
+            outgoingChallenge={outgoingChallenge}
+            onCancelOutgoingChallenge={() => {
+              clearOutgoingChallenge(true);
+              addToast('Challenge cancelled.');
+            }}
             createdRoomCode={createdRoomCode}
             onCancelRoom={() => {
-              setCreatedRoomCode(null);
+              clearPendingPrivateRoom(true);
               addToast('Room cancelled.');
             }}
-            onRefreshPlayers={() => {
+            onRefreshPlayers={async () => {
+              const latest = await fetchOnlinePlayersOnce();
+              setOnlinePlayers(latest);
               addToast('Refreshed active players list.');
             }}
             myUid={currentUser?.uid}
@@ -952,12 +1172,23 @@ export default function App() {
             hapticsEnabled={hapticsEnabled}
             onToggleHaptics={setHapticsEnabled}
             onResetData={() => {
-              if (confirm('Reset all your local game stats, achievements, and level?')) {
-                storage.clearAll();
-                window.location.reload();
-              }
+              setConfirmDialog({
+                title: 'Reset Local Data?',
+                message: 'This will reset all your local game stats, achievements, and match history.',
+                confirmLabel: 'Reset All',
+                onConfirm: () => {
+                  setConfirmDialog(null);
+                  storage.clearAll();
+                  window.location.reload();
+                }
+              });
             }}
             onSignOut={async () => {
+              clearOutgoingChallenge(true);
+              clearPendingPrivateRoom(true);
+              if (isMatchmaking) {
+                await handleCancelMatchmaking();
+              }
               const wasGuest = Boolean(profile.isGuest || currentUser?.isAnonymous);
               await logOut(wasGuest);
               const freshProf = storage.getProfile();
@@ -976,13 +1207,70 @@ export default function App() {
         activeTab={activeTab}
         onTabChange={(tab) => {
           if (activeTab === 'arena' && gameMode === 'online') {
-            if (!confirm('Leave current online match?')) return;
-            handleExitOnline();
+            setConfirmDialog({
+              title: 'Leave Online Match?',
+              message: 'Leaving now will end this live match for both players.',
+              confirmLabel: 'Leave Match',
+              onConfirm: () => {
+                setConfirmDialog(null);
+                handleExitOnline(true);
+                setActiveTab(tab);
+              }
+            });
+            return;
           }
           setActiveTab(tab);
         }}
         onlinePlayerCount={onlinePlayers.filter((p) => p.uid !== currentUser?.uid).length}
       />
+
+      {/* In-App Confirmation Dialog */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div
+            className="w-full max-w-xs rounded-3xl border p-5 flex flex-col items-center text-center shadow-2xl"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-subtle)'
+            }}
+          >
+            <h3 className="font-display font-black text-lg" style={{ color: 'var(--text-main)' }}>
+              {confirmDialog.title}
+            </h3>
+            <p className="text-xs mt-1.5 mb-5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {confirmDialog.message}
+            </p>
+            <div className="flex w-full gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  setConfirmDialog(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl border text-xs font-bold active:scale-95 cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--bg-surface-elevated)',
+                  borderColor: 'var(--border-subtle)',
+                  color: 'var(--text-main)'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  confirmDialog.onConfirm();
+                }}
+                className="flex-1 py-2.5 rounded-xl text-white text-xs font-bold active:scale-95 cursor-pointer"
+                style={{ backgroundColor: 'var(--danger)' }}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Result Modal */}
       <ResultModal

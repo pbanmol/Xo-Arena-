@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../services/sound';
 
 interface LocalSetupModalProps {
@@ -17,6 +17,12 @@ export const LocalSetupModal: React.FC<LocalSetupModalProps> = ({
   const [nameX, setNameX] = useState(defaultNameX || 'Player 1');
   const [nameO, setNameO] = useState('Player 2');
 
+  useEffect(() => {
+    if (isOpen) {
+      setNameX(defaultNameX || 'Player 1');
+    }
+  }, [isOpen, defaultNameX]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -26,10 +32,18 @@ export const LocalSetupModal: React.FC<LocalSetupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
+      style={{
+        paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+        paddingLeft: '1rem',
+        paddingRight: '1rem'
+      }}
+    >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-3xl border p-6 flex flex-col items-center text-center shadow-2xl animate-in zoom-in-95 duration-200"
+        className="w-full max-w-sm mx-auto mt-4 sm:mt-12 rounded-3xl border p-6 flex flex-col items-center text-center shadow-2xl animate-in zoom-in-95 duration-200"
         style={{
           backgroundColor: 'var(--bg-card)',
           borderColor: 'var(--border-subtle)'
@@ -56,7 +70,7 @@ export const LocalSetupModal: React.FC<LocalSetupModalProps> = ({
               onChange={(e) => setNameX(e.target.value)}
               placeholder="Player 1"
               maxLength={15}
-              className="w-full px-3 py-2.5 rounded-xl border text-xs font-semibold outline-none"
+              className="w-full px-3.5 py-2.5 rounded-xl border text-base font-semibold outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',
@@ -75,7 +89,7 @@ export const LocalSetupModal: React.FC<LocalSetupModalProps> = ({
               onChange={(e) => setNameO(e.target.value)}
               placeholder="Player 2"
               maxLength={15}
-              className="w-full px-3 py-2.5 rounded-xl border text-xs font-semibold outline-none"
+              className="w-full px-3.5 py-2.5 rounded-xl border text-base font-semibold outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',

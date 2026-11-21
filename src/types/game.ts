@@ -46,7 +46,9 @@ export interface OnlineMatch {
   playerOName: string;
   board: Board;
   currentTurn: Player;
-  status: 'waiting' | 'active' | 'completed' | 'abandoned';
+  status: 'waiting' | 'waiting_quick' | 'active' | 'completed' | 'abandoned';
+  isQuickMatch?: boolean;
+  queuedAt?: number;
   winner: Player | 'draw' | null;
   winningLine?: number[];
   round: number;
