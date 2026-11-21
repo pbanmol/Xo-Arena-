@@ -14,6 +14,9 @@ jobs:
     runs-on: macos-latest
     if: github.event_name != 'pull_request'
 
+    env:
+      NODE_OPTIONS: --dns-result-order=ipv4first
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -23,14 +26,29 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install dependencies and build web app
+      - name: Install dependencies (macOS arm64)
         run: |
-          npm install --legacy-peer-deps
-          npm run build
+          set -o pipefail
+          # Remove Linux-generated lockfile so macOS arm64 resolves native Vite/Tailwind/Capacitor bindings cleanly
+          rm -f package-lock.json
+          for attempt in 1 2 3; do
+            echo "npm install attempt $attempt..."
+            if npm install --legacy-peer-deps --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=5000 --fetch-retry-maxtimeout=30000 --fetch-timeout=60000 2>&1 | tee npm_install.log; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
+          exit 1
+
+      - name: Build web app & sync Capacitor iOS
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee web_build.log
           if [ ! -d "ios" ]; then
             npx cap add ios
           fi
-          npx cap sync ios
+          npx cap sync ios 2>&1 | tee cap_sync.log
 
       - name: Prepare 1024x1024 iOS App Icon
         run: |
@@ -38,6 +56,24 @@ jobs:
             mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset
             sips -s format png -z 1024 1024 public/icon.png --out ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
           fi
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          for attempt in 1 2 3; do
+            echo "Resolving Swift packages (attempt $attempt)..."
+            if xcodebuild \
+              -resolvePackageDependencies \
+              -project ios/App/App.xcodeproj \
+              -scheme App \
+              -clonedSourcePackagesDirPath ios/SourcePackages 2>&1 | tee spm_resolve.log; then
+              exit 0
+            fi
+            echo "SPM resolve attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
+          exit 1
 
       - name: Build Unsigned iOS Release App (.app)
         id: build_xcode
@@ -50,22 +86,29 @@ jobs:
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath ios/DerivedData \
+            -clonedSourcePackagesDirPath ios/SourcePackages \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
             MARKETING_VERSION="1.0.0" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             build 2>&1 | tee ios_build.log
 
-      - name: Report Xcode Build Logs on Failure
+      - name: Report Build Logs on Failure
         if: failure()
         run: |
-          if [ -f ios_build.log ]; then
-            echo "### ❌ iOS Xcode Build Failed" >> $GITHUB_STEP_SUMMARY
-            echo '```text' >> $GITHUB_STEP_SUMMARY
-            tail -n 120 ios_build.log >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "### ❌ iOS Build Failed - Diagnostic Logs" >> $GITHUB_STEP_SUMMARY
+          for logfile in npm_install.log web_build.log cap_sync.log spm_resolve.log ios_build.log; do
+            if [ -f "$logfile" ]; then
+              echo "#### $logfile (last 60 lines)" >> $GITHUB_STEP_SUMMARY
+              echo '```text' >> $GITHUB_STEP_SUMMARY
+              tail -n 60 "$logfile" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          done
 
       - name: Package .ipa Archive
         id: pack_ipa
