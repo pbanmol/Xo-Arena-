@@ -30,6 +30,7 @@ import {
   listenToChat,
   listenToIncomingChallenges,
   listenToLeaderboard,
+  listenToLiveMatchMoves,
   listenToMatch,
   listenToOnlinePlayers,
   listenToOutgoingChallenge,
@@ -40,6 +41,7 @@ import {
   requestMatchRestart,
   sendChatMessage,
   sendDirectChallenge,
+  setupMatchPresenceAndWatchOpponent,
   setupPresence,
   syncUserProfile,
   stabilizePermanentPlayerUids
@@ -131,6 +133,11 @@ export default function App() {
   const pendingRoomMatchIdRef = useRef<string | null>(null);
   const completedRoundKeyRef = useRef<string | null>(null);
   const prevOnlinePiecesRef = useRef<number>(0);
+  const onlineRoundRef = useRef<number>(1);
+  const onlineNamesRef = useRef<{ X: string; O: string }>({ X: 'Player X', O: 'Player O' });
+  const onlineOpponentUidRef = useRef<string | null>(null);
+  const onlinePresenceUnsubRef = useRef<(() => void) | null>(null);
+  const onlineMatchCutRef = useRef<boolean>(false);
   const moveInFlightRef = useRef<boolean>(false);
   const aiMoveTimerRef = useRef<any>(null);
   const lastIncomingChallengeIdRef = useRef<string | null>(null);
@@ -317,78 +324,121 @@ export default function App() {
     };
   }, [currentUser, profile.blockedUids, profile.isGuest]);
 
-  // Listen to Active Online Match
+  // Listen to Active Online Match (Dual-Channel: RTDB ~50ms WebSocket + Firestore + Instant Offline Watchdog)
   useEffect(() => {
     if (!activeOnlineMatchId) return;
 
-    const unsubMatch = listenToMatch(activeOnlineMatchId, (matchData) => {
-      if (!matchData) {
-        addToast('Match is no longer available.', 'error');
-        handleExitOnline(false);
+    onlineMatchCutRef.current = false;
+    onlineOpponentUidRef.current = null;
+
+    const cleanupPresenceWatch = () => {
+      if (onlinePresenceUnsubRef.current) {
+        onlinePresenceUnsubRef.current();
+        onlinePresenceUnsubRef.current = null;
+      }
+    };
+
+    const cutMatchWithAlert = (message: string, notifyServerUid?: string, reason: 'left' | 'offline' = 'offline') => {
+      if (onlineMatchCutRef.current) return;
+      onlineMatchCutRef.current = true;
+      cleanupPresenceWatch();
+      sound.playDisconnect();
+      haptics.trigger([70, 50, 110]);
+      if (notifyServerUid) {
+        exitOnlineMatch(activeOnlineMatchId, notifyServerUid, reason).catch(() => {});
+      }
+      addToast(message, 'error');
+      handleExitOnline(false);
+    };
+
+    const applyBoardAndRoundState = (params: {
+      board: Board;
+      currentTurn: Player;
+      status: string;
+      winner: Player | 'draw' | null;
+      winningLine?: number[];
+      round: number;
+      exitedBy?: string;
+      reason?: string;
+      playerXUid?: string;
+    }) => {
+      if (onlineMatchCutRef.current) return;
+
+      if (params.status === 'abandoned') {
+        const leftByMe = params.exitedBy === currentUser?.uid;
+        if (!leftByMe) {
+          const effectiveSymbol: Player =
+            myOnlineSymbol || (params.playerXUid === currentUser?.uid ? 'X' : 'O');
+          const oppName = effectiveSymbol === 'X' ? onlineNamesRef.current.O : onlineNamesRef.current.X;
+          const msg =
+            params.reason === 'offline'
+              ? `${oppName} went offline! Match ended.`
+              : `${oppName} left the match! Match ended.`;
+          cutMatchWithAlert(msg);
+        } else {
+          onlineMatchCutRef.current = true;
+          cleanupPresenceWatch();
+          addToast('You left the match.', 'info');
+          handleExitOnline(false);
+        }
         return;
       }
 
-      if (matchData.status === 'abandoned') {
-        const leftByMe = matchData.exitedBy === currentUser?.uid;
-        addToast(leftByMe ? 'You left the match.' : 'Opponent has disconnected or left.', 'info');
-        handleExitOnline(false);
-        return;
-      }
-
-      // Play move sound when a new move appears on the online board
-      const nextBoard = Array.isArray(matchData.board) ? matchData.board : Array(9).fill(null);
+      const incomingRound = Number(params.round || 1);
+      const nextBoard = Array.isArray(params.board) ? params.board : Array(9).fill(null);
       const piecesCount = nextBoard.filter((c) => c !== null).length;
+
+      // Monotonicity guard: ignore stale snapshots from an older round or fewer pieces in the same round
+      if (incomingRound < onlineRoundRef.current) return;
+      if (incomingRound === onlineRoundRef.current && piecesCount < prevOnlinePiecesRef.current && params.status !== 'completed') {
+        return;
+      }
+
+      // If a brand new rematch round started, reset piece counter
+      if (incomingRound > onlineRoundRef.current) {
+        onlineRoundRef.current = incomingRound;
+        prevOnlinePiecesRef.current = 0;
+        completedRoundKeyRef.current = null;
+      }
+
+      // Play loud move sound when a new move arrives from the opponent (own move already played optimistically!)
       if (piecesCount > prevOnlinePiecesRef.current && piecesCount > 0) {
-        const lastMovedSymbol: Player = matchData.currentTurn === 'X' ? 'O' : 'X';
+        const lastMovedSymbol: Player = params.currentTurn === 'X' ? 'O' : 'X';
         sound.playMove(lastMovedSymbol);
+        haptics.trigger(25);
       }
       prevOnlinePiecesRef.current = piecesCount;
 
-      // Update board & turn
+      // Update board & turn immediately
       setBoard(nextBoard);
-      setCurrentTurn(matchData.currentTurn);
-      setWinningLine(matchData.winningLine || []);
-      const nextNames = {
-        X: matchData.playerXName || 'Player X',
-        O: matchData.playerOName || 'Player O'
-      };
-      setPlayerNames(nextNames);
+      setCurrentTurn(params.currentTurn);
+      setWinningLine(params.winningLine || []);
 
-      if (matchData.roomCode) {
-        setCurrentRoomCode(matchData.roomCode);
-      }
-
-      // Check if I requested restart
-      if (Array.isArray(matchData.restartRequests) && currentUser) {
-        setRestartRequestedByMe(matchData.restartRequests.includes(currentUser.uid));
-      } else {
-        setRestartRequestedByMe(false);
-      }
-
-      // Match Completion or Active Rematch (guarded so rematch updates never double-count!)
-      const roundKey = `${activeOnlineMatchId}_r${matchData.round || 1}`;
-      if (matchData.status === 'completed') {
+      // Match Completion or Active Rematch (guarded so dual RTDB+Firestore events NEVER double-count!)
+      const roundKey = `${activeOnlineMatchId}_r${incomingRound}`;
+      if (params.status === 'completed') {
         setIsGameOver(true);
         if (completedRoundKeyRef.current !== roundKey) {
           completedRoundKeyRef.current = roundKey;
           const effectiveSymbol: Player =
-            myOnlineSymbol || (matchData.playerXUid === currentUser?.uid ? 'X' : 'O');
-          const won = matchData.winner === effectiveSymbol;
-          const draw = matchData.winner === 'draw';
-          const opponentName = effectiveSymbol === 'X' ? nextNames.O : nextNames.X;
+            myOnlineSymbol || (params.playerXUid === currentUser?.uid ? 'X' : 'O');
+          const won = params.winner === effectiveSymbol;
+          const draw = params.winner === 'draw';
+          const names = onlineNamesRef.current;
+          const opponentName = effectiveSymbol === 'X' ? names.O : names.X;
           const winnerName =
-            matchData.winner && matchData.winner !== 'draw' ? nextNames[matchData.winner] : undefined;
+            params.winner && params.winner !== 'draw' ? names[params.winner] : undefined;
 
           handleMatchEnded(
             draw ? 'draw' : won ? 'win' : 'loss',
-            matchData.winner || 'draw',
+            params.winner || 'draw',
             'Online Match',
             opponentName,
             winnerName,
             piecesCount
           );
         }
-      } else if (matchData.status === 'active') {
+      } else if (params.status === 'active') {
         if (completedRoundKeyRef.current && completedRoundKeyRef.current !== roundKey) {
           completedRoundKeyRef.current = null;
         }
@@ -396,14 +446,95 @@ export default function App() {
         setWinningLine([]);
         setResultModal((prev) => (prev.isOpen ? { isOpen: false, outcome: null, earnedXP: 0 } : prev));
       }
+    };
+
+    // 1. Fast RTDB WebSocket Live Move Listener (~40-90ms latency!)
+    const unsubLive = listenToLiveMatchMoves(activeOnlineMatchId, (live) => {
+      applyBoardAndRoundState({
+        board: live.board,
+        currentTurn: live.currentTurn,
+        status: live.status,
+        winner: live.winner,
+        winningLine: live.winningLine,
+        round: live.round,
+        exitedBy: live.exitedBy,
+        reason: live.reason
+      });
     });
 
-    // Chat listener
+    // 2. Authoritative Firestore Match Metadata + Fallback Sync Listener
+    const unsubMatch = listenToMatch(activeOnlineMatchId, (matchData) => {
+      if (!matchData) {
+        if (!onlineMatchCutRef.current) {
+          cutMatchWithAlert('Match is no longer available.');
+        }
+        return;
+      }
+
+      const nextNames = {
+        X: matchData.playerXName || 'Player X',
+        O: matchData.playerOName || 'Player O'
+      };
+      onlineNamesRef.current = nextNames;
+      setPlayerNames(nextNames);
+
+      if (matchData.roomCode) {
+        setCurrentRoomCode(matchData.roomCode);
+      }
+
+      if (Array.isArray(matchData.restartRequests) && currentUser) {
+        setRestartRequestedByMe(matchData.restartRequests.includes(currentUser.uid));
+      } else {
+        setRestartRequestedByMe(false);
+      }
+
+      // Attach instant opponent offline / disconnect watcher once opponent UID is known
+      if (currentUser && !onlineOpponentUidRef.current) {
+        const oppUid =
+          matchData.playerXUid === currentUser.uid ? matchData.playerOUid : matchData.playerXUid;
+        if (oppUid && oppUid !== currentUser.uid) {
+          onlineOpponentUidRef.current = oppUid;
+          const oppName = matchData.playerXUid === currentUser.uid ? nextNames.O : nextNames.X;
+          cleanupPresenceWatch();
+          onlinePresenceUnsubRef.current = setupMatchPresenceAndWatchOpponent(
+            activeOnlineMatchId,
+            currentUser.uid,
+            oppUid,
+            () => {
+              cutMatchWithAlert(`${oppName} went offline! Match ended.`, oppUid, 'offline');
+            }
+          );
+        }
+      }
+
+      applyBoardAndRoundState({
+        board: Array.isArray(matchData.board) ? matchData.board : Array(9).fill(null),
+        currentTurn: matchData.currentTurn,
+        status: matchData.status,
+        winner: matchData.winner,
+        winningLine: matchData.winningLine,
+        round: Number(matchData.round || 1),
+        exitedBy: matchData.exitedBy,
+        reason: (matchData as any).exitReason,
+        playerXUid: matchData.playerXUid
+      });
+    });
+
+    // 3. Detect if THIS device drops offline mid-match
+    const handleMyOffline = () => {
+      cutMatchWithAlert('You went offline! Match disconnected.');
+    };
+    window.addEventListener('offline', handleMyOffline);
+
+    // 4. Chat listener
     const unsubChat = listenToChat(activeOnlineMatchId, (messages) => {
       setChatMessages(messages);
     });
 
     return () => {
+      window.removeEventListener('offline', handleMyOffline);
+      cleanupPresenceWatch();
+      unsubLive();
       unsubMatch();
       unsubChat();
     };
@@ -459,9 +590,34 @@ export default function App() {
       if (!activeOnlineMatchId || !myOnlineSymbol || currentTurn !== myOnlineSymbol || moveInFlightRef.current) {
         return;
       }
+
+      // 0ms Optimistic UI Update + Instant Loud Sound so tapping feels instantaneous!
+      const prevBoard = [...board];
+      const prevTurn = currentTurn;
+      const optimisticBoard = [...board];
+      optimisticBoard[index] = myOnlineSymbol;
+      const nextPieces = optimisticBoard.filter((c) => c !== null).length;
+      const nextTurn: Player = myOnlineSymbol === 'X' ? 'O' : 'X';
+      const optimisticOutcome = checkWinner(optimisticBoard);
+
+      sound.playMove(myOnlineSymbol);
+      prevOnlinePiecesRef.current = nextPieces;
+      setBoard(optimisticBoard);
+      setCurrentTurn(nextTurn);
+      if (optimisticOutcome) {
+        setWinningLine(optimisticOutcome.line);
+        setIsGameOver(true);
+      }
+
       moveInFlightRef.current = true;
-      makeOnlineMove(activeOnlineMatchId, index, myOnlineSymbol)
+      makeOnlineMove(activeOnlineMatchId, index, myOnlineSymbol, prevBoard, onlineRoundRef.current)
         .catch(() => {
+          // Roll back cleanly if network write fails
+          prevOnlinePiecesRef.current = prevBoard.filter((c) => c !== null).length;
+          setBoard(prevBoard);
+          setCurrentTurn(prevTurn);
+          setWinningLine([]);
+          setIsGameOver(false);
           addToast('Move failed. Check connection.', 'error');
         })
         .finally(() => {
@@ -507,13 +663,13 @@ export default function App() {
     const nextTurn = currentTurn === 'X' ? 'O' : 'X';
     setCurrentTurn(nextTurn);
 
-    // AI Response move (tracked by ref so Restart/Undo/Exit cleanly cancels it)
+    // AI Response move (tracked by ref so Restart/Undo/Exit cleanly cancels it; snappy 260ms feel)
     if (gameMode === 'computer' && nextTurn === 'O') {
       cancelPendingAIMove();
       aiMoveTimerRef.current = setTimeout(() => {
         aiMoveTimerRef.current = null;
         executeAIMove(newBoard);
-      }, 350);
+      }, 260);
     }
   };
 
@@ -554,6 +710,9 @@ export default function App() {
     if (result === 'win') {
       sound.playWin();
       haptics.trigger([50, 50, 100]);
+    } else if (result === 'loss') {
+      sound.playLoss();
+      haptics.trigger([80, 50, 80]);
     } else if (result === 'draw') {
       sound.playDraw();
       haptics.trigger(60);
@@ -743,6 +902,9 @@ export default function App() {
   const enterOnlineArena = useCallback((matchId: string, symbol: Player, roomCode?: string) => {
     completedRoundKeyRef.current = null;
     prevOnlinePiecesRef.current = 0;
+    onlineRoundRef.current = 1;
+    onlineOpponentUidRef.current = null;
+    onlineMatchCutRef.current = false;
     moveInFlightRef.current = false;
     setBoard(Array(9).fill(null));
     setCurrentTurn('X');
@@ -760,11 +922,18 @@ export default function App() {
   }, []);
 
   const handleExitOnline = (notifyServer: boolean = true) => {
+    if (onlinePresenceUnsubRef.current) {
+      onlinePresenceUnsubRef.current();
+      onlinePresenceUnsubRef.current = null;
+    }
     if (notifyServer && activeOnlineMatchId && currentUser) {
-      exitOnlineMatch(activeOnlineMatchId, currentUser.uid);
+      exitOnlineMatch(activeOnlineMatchId, currentUser.uid, 'left');
     }
     completedRoundKeyRef.current = null;
     prevOnlinePiecesRef.current = 0;
+    onlineRoundRef.current = 1;
+    onlineOpponentUidRef.current = null;
+    onlineMatchCutRef.current = false;
     moveInFlightRef.current = false;
     setActiveOnlineMatchId(null);
     setMyOnlineSymbol(undefined);

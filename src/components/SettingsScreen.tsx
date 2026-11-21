@@ -219,7 +219,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </div>
 
       <div className="text-center text-[11px] font-bold tracking-widest uppercase py-3" style={{ color: 'var(--text-muted)' }}>
-        XO ARENA v1.2 • MADE BY PBX
+        XO ARENA v1.0.0 • MADE BY PBX
       </div>
     </div>
   );

@@ -28,14 +28,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  // Capture full viewport height when keyboard is closed so the card stays dead-center
+  // and NEVER shifts up or down when the mobile soft keyboard opens.
+  const [stableMinHeight, setStableMinHeight] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerHeight : 720
+  );
 
-  // Lock background page scroll while modal is open so keyboard focus never jumps the screen
   useEffect(() => {
     if (!isOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
+    const updateHeightIfNoInputFocused = () => {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+        setStableMinHeight(window.innerHeight);
+      }
+    };
+
+    updateHeightIfNoInputFocused();
+    window.addEventListener('orientationchange', updateHeightIfNoInputFocused);
+    window.addEventListener('resize', updateHeightIfNoInputFocused);
+
     return () => {
       document.body.style.overflow = prevOverflow;
+      window.removeEventListener('orientationchange', updateHeightIfNoInputFocused);
+      window.removeEventListener('resize', updateHeightIfNoInputFocused);
     };
   }, [isOpen]);
 
@@ -91,112 +109,230 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div
       className={`fixed inset-0 z-50 overflow-y-auto overscroll-contain ${
-        isEntryGate ? 'bg-[var(--bg-base)]' : 'bg-black/60 backdrop-blur-sm'
+        isEntryGate ? 'bg-[var(--bg-base)]' : 'bg-black/65 backdrop-blur-md'
       }`}
-      style={{
-        paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
-        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
-        paddingLeft: '1rem',
-        paddingRight: '1rem'
-      }}
     >
-      {/* Stable top-anchored card: never bounces up/down when mobile keyboard opens or closes */}
+      {/* Centered layout anchored to stableMinHeight so it sits perfectly in the middle
+          of the screen and never jumps when opening the keyboard */}
       <div
-        className="w-full max-w-sm mx-auto mt-2 sm:mt-8 rounded-3xl border p-5 flex flex-col items-center text-center shadow-2xl relative"
+        className="w-full flex flex-col items-center justify-center px-5"
         style={{
-          backgroundColor: 'var(--bg-card)',
-          borderColor: 'var(--border-subtle)'
+          minHeight: `${stableMinHeight}px`,
+          paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))'
         }}
       >
-        {!isEntryGate && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-          >
-            ✕
-          </button>
-        )}
-
-        <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-md border border-[var(--border-subtle)] mb-2">
-          <img src="/icon.png" alt="XO Arena" className="w-full h-full object-cover" />
-        </div>
-
-        <h3 className="font-display font-black text-xl tracking-wider leading-tight" style={{ color: 'var(--text-main)' }}>
-          XO ARENA
-        </h3>
-        <p className="text-xs mb-3.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          {isEntryGate
-            ? 'Choose how you want to enter the arena'
-            : tab === 'signin'
-              ? 'Sign in to save progress & play online'
-              : 'Create an account to join the arena'}
-        </p>
-
-        {/* Tab switch */}
         <div
-          className="w-full flex p-1 rounded-xl border mb-3.5"
+          className="w-full max-w-[372px] rounded-[28px] border p-6 flex flex-col items-center text-center shadow-2xl relative"
           style={{
-            backgroundColor: 'var(--bg-surface-elevated)',
+            backgroundColor: 'var(--bg-card)',
             borderColor: 'var(--border-subtle)'
           }}
         >
-          <button
-            type="button"
-            onClick={() => {
-              sound.playClick();
-              setTab('signin');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === 'signin'
-                ? 'bg-[var(--accent-primary)] text-white shadow-sm'
-                : 'text-slate-400'
-            }`}
-          >
-            👤 Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              sound.playClick();
-              setTab('register');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              tab === 'register'
-                ? 'bg-[var(--accent-primary)] text-white shadow-sm'
-                : 'text-slate-400'
-            }`}
-          >
-            🛡️ Register
-          </button>
-        </div>
+          {!isEntryGate && (
+            <button
+              type="button"
+              onClick={() => {
+                sound.playClick();
+                onClose();
+              }}
+              aria-label="Close"
+              className="absolute top-3.5 right-3.5 w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          )}
 
-        {errorMsg && (
-          <div className="w-full mb-3 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs text-left font-medium">
-            {errorMsg}
+          {/* Brand Emblem */}
+          <div className="relative mb-3">
+            <div
+              className="absolute -inset-1.5 rounded-[22px] opacity-25 blur-md pointer-events-none"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+              }}
+            />
+            <div
+              className="relative w-16 h-16 rounded-2xl p-[2px] shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+              }}
+            >
+              <img
+                src="/icon.png"
+                alt="XO Arena"
+                className="w-full h-full object-cover rounded-[14px]"
+              />
+            </div>
           </div>
-        )}
 
-        {/* Form - 16px (text-base) inputs prevent iPhone Safari auto-zoom */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 w-full text-left" noValidate>
-          {tab === 'register' && (
-            <>
-              <div>
-                <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
-                  Full Name
-                </label>
+          <h2
+            className="font-display font-black text-2xl tracking-wider leading-tight"
+            style={{ color: 'var(--text-main)' }}
+          >
+            XO ARENA
+          </h2>
+          <p className="text-[13px] mt-1 mb-5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+            {tab === 'signin'
+              ? 'Sign in to play online & save your rank'
+              : 'Create your player profile to compete'}
+          </p>
+
+          {/* Clean Segmented Switcher */}
+          <div
+            className="w-full grid grid-cols-2 gap-1 p-1 rounded-2xl border mb-5"
+            style={{
+              backgroundColor: 'var(--bg-surface-elevated)',
+              borderColor: 'var(--border-subtle)'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                sound.playClick();
+                setTab('signin');
+                setErrorMsg('');
+              }}
+              className={`min-h-[42px] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                tab === 'signin' ? 'text-white shadow-sm' : ''
+              }`}
+              style={
+                tab === 'signin'
+                  ? { backgroundColor: 'var(--accent-primary)' }
+                  : { color: 'var(--text-muted)' }
+              }
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" x2="3" y1="12" y2="12" />
+              </svg>
+              <span>Sign In</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sound.playClick();
+                setTab('register');
+                setErrorMsg('');
+              }}
+              className={`min-h-[42px] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                tab === 'register' ? 'text-white shadow-sm' : ''
+              }`}
+              style={
+                tab === 'register'
+                  ? { backgroundColor: 'var(--accent-primary)' }
+                  : { color: 'var(--text-muted)' }
+              }
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" x2="19" y1="8" y2="14" />
+                <line x1="22" x2="16" y1="11" y2="11" />
+              </svg>
+              <span>Register</span>
+            </button>
+          </div>
+
+          {errorMsg && (
+            <div className="w-full mb-4 px-3.5 py-2.5 rounded-xl bg-rose-500/12 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs text-left font-semibold leading-snug">
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Form — 16px (text-base) inputs prevent iPhone Safari auto-zoom */}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 w-full text-left" noValidate>
+            {tab === 'register' && (
+              <>
+                <div>
+                  <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-main)' }}>
+                    Player Name
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3.5 pointer-events-none opacity-60" style={{ color: 'var(--text-muted)' }}>
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                    </span>
+                    <input
+                      type="text"
+                      name="name"
+                      autoComplete="name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Enter your name"
+                      maxLength={20}
+                      className="w-full h-12 pl-10 pr-3.5 rounded-xl border text-base outline-none font-medium transition-colors focus:border-[var(--accent-primary)]"
+                      style={{
+                        backgroundColor: 'var(--bg-surface-elevated)',
+                        borderColor: 'var(--border-subtle)',
+                        color: 'var(--text-main)'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-main)' }}>
+                    Choose Avatar
+                  </label>
+                  <div
+                    className="grid grid-cols-6 gap-1.5 p-2 rounded-xl border"
+                    style={{
+                      backgroundColor: 'var(--bg-surface-elevated)',
+                      borderColor: 'var(--border-subtle)'
+                    }}
+                  >
+                    {REG_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          sound.playClick();
+                          setSelectedEmoji(emoji);
+                        }}
+                        className={`h-9 rounded-lg flex items-center justify-center text-lg transition-transform active:scale-90 cursor-pointer ${
+                          selectedEmoji === emoji
+                            ? 'border-2 border-[var(--accent-primary)] bg-[var(--bg-card)] shadow-sm'
+                            : 'border border-transparent'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-main)' }}>
+                Email Address
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 pointer-events-none opacity-60" style={{ color: 'var(--text-muted)' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                </span>
                 <input
-                  type="text"
-                  name="name"
-                  autoComplete="name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. PBX"
-                  maxLength={20}
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-base outline-none font-semibold"
+                  type="email"
+                  name="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value.replace(/\s+/g, ''))}
+                  placeholder="name@example.com"
+                  className="w-full h-12 pl-10 pr-3.5 rounded-xl border text-base outline-none transition-colors focus:border-[var(--accent-primary)]"
                   style={{
                     backgroundColor: 'var(--bg-surface-elevated)',
                     borderColor: 'var(--border-subtle)',
@@ -204,119 +340,105 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   }}
                 />
               </div>
-
-              <div>
-                <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
-                  Choose Avatar Emoji
-                </label>
-                <div className="grid grid-cols-6 gap-1.5 p-2 rounded-xl border bg-[var(--bg-surface-elevated)] border-[var(--border-subtle)]">
-                  {REG_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setSelectedEmoji(emoji)}
-                      className={`h-8 rounded-lg flex items-center justify-center text-lg transition-transform active:scale-90 ${
-                        selectedEmoji === emoji
-                          ? 'border-2 border-[var(--accent-primary)] bg-[var(--bg-card)] shadow-sm'
-                          : 'border border-transparent'
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
-              Email Address
-            </label>
-            <input
-              type="email"
-              name="email"
-              inputMode="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              value={email}
-              onChange={(e) => setEmail(e.target.value.replace(/\s+/g, ''))}
-              placeholder="name@example.com"
-              className="w-full px-3.5 py-2.5 rounded-xl border text-base outline-none"
-              style={{
-                backgroundColor: 'var(--bg-surface-elevated)',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-main)'
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>
-              Password
-            </label>
-            <div className="relative flex items-center">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-                className="w-full pl-3.5 pr-11 py-2.5 rounded-xl border text-base outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                  color: 'var(--text-main)'
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2.5 px-1.5 py-1 text-sm opacity-70 hover:opacity-100 cursor-pointer"
-              >
-                {showPassword ? '🙈' : '👁️'}
-              </button>
             </div>
+
+            <div>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-main)' }}>
+                Password
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 pointer-events-none opacity-60" style={{ color: 'var(--text-muted)' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </span>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  className="w-full h-12 pl-10 pr-12 rounded-xl border text-base outline-none transition-colors focus:border-[var(--accent-primary)]"
+                  style={{
+                    backgroundColor: 'var(--bg-surface-elevated)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--text-main)'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-1.5 w-10 h-10 flex items-center justify-center rounded-lg opacity-70 hover:opacity-100 cursor-pointer"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+                      <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+                      <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+                      <path d="m2 2 20 20" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 mt-1 rounded-xl text-white font-bold text-sm tracking-wide shadow-lg transition-transform active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))'
+              }}
+            >
+              {loading ? 'Please wait...' : tab === 'signin' ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3 w-full my-4">
+            <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
+            <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              or
+            </span>
+            <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
           </div>
 
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-1.5 py-3 rounded-xl text-white font-bold text-sm shadow-md transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
-            style={{ backgroundColor: 'var(--accent-primary)' }}
+            type="button"
+            onClick={() => {
+              sound.playClick();
+              onContinueGuest();
+              onClose();
+            }}
+            className="w-full h-11 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-transform active:scale-[0.98] cursor-pointer"
+            style={{
+              backgroundColor: 'var(--bg-surface-elevated)',
+              borderColor: 'var(--border-subtle)',
+              color: 'var(--text-main)'
+            }}
           >
-            {loading ? 'Processing...' : tab === 'signin' ? 'Sign In' : 'Create Account'}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-primary)' }}>
+              <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+            </svg>
+            <span>Play as Guest (Offline Mode)</span>
           </button>
-        </form>
-
-        <div className="flex items-center gap-2 w-full my-3">
-          <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
-          <span className="text-[11px] font-semibold uppercase" style={{ color: 'var(--text-muted)' }}>
-            or
-          </span>
-          <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)' }} />
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            sound.playClick();
-            onContinueGuest();
-            onClose();
-          }}
-          className="w-full py-2.5 rounded-xl border text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
-          style={{
-            backgroundColor: 'var(--bg-surface-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-main)'
-          }}
+        {/* Clean Grounding Footer */}
+        <p
+          className="mt-5 text-[11px] font-semibold tracking-wider text-center"
+          style={{ color: 'var(--text-muted)' }}
         >
-          ⚡ Play Directly as Guest (No ID)
-        </button>
+          XO ARENA v1.0.0 · MADE BY PBX
+        </p>
       </div>
     </div>
   );

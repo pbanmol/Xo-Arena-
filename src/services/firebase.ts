@@ -34,9 +34,10 @@ import {
   set,
   get,
   onValue,
-  onDisconnect
+  onDisconnect,
+  serverTimestamp as rtdbServerTimestamp
 } from 'firebase/database';
-import { DirectChallenge, OnlineMatch, OnlinePlayer, Player, UserProfile } from '../types/game';
+import { Board, DirectChallenge, OnlineMatch, OnlinePlayer, Player, UserProfile } from '../types/game';
 import { checkWinner } from './ai';
 import { storage, calculateLevelInfo } from './storage';
 
@@ -240,6 +241,20 @@ export function setupPresence(user: User, profile: UserProfile) {
     }
   };
 
+  const markOfflineNow = () => {
+    try {
+      set(statusRef, {
+        uid,
+        numericUid: profile.numericUid || 1,
+        isOnline: false,
+        lastSeen: Date.now(),
+        updatedAt: Date.now()
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  };
+
   const unsub = onValue(connectedRef, async (snap) => {
     if (snap.val() === true) {
       try {
@@ -247,8 +262,8 @@ export function setupPresence(user: User, profile: UserProfile) {
           uid,
           numericUid: profile.numericUid || 1,
           isOnline: false,
-          lastSeen: Date.now(),
-          updatedAt: Date.now()
+          lastSeen: rtdbServerTimestamp(),
+          updatedAt: rtdbServerTimestamp()
         });
         await updateOnline();
       } catch {
@@ -257,12 +272,26 @@ export function setupPresence(user: User, profile: UserProfile) {
     }
   });
 
+  const handlePageHide = () => markOfflineNow();
+  const handleOnlineBack = () => updateOnline();
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+    window.addEventListener('online', handleOnlineBack);
+  }
+
   presenceHeartbeat = setInterval(() => {
     updateOnline();
-  }, 20000);
+  }, 12000);
 
   return () => {
     unsub();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+      window.removeEventListener('online', handleOnlineBack);
+    }
     if (presenceHeartbeat) {
       clearInterval(presenceHeartbeat);
       presenceHeartbeat = null;
@@ -1209,8 +1238,274 @@ export function listenToMatch(
   );
 }
 
-export async function makeOnlineMove(matchId: string, cellIndex: number, playerSymbol: Player) {
+export interface LiveMatchUpdate {
+  board: Board;
+  currentTurn: Player;
+  status: 'active' | 'completed' | 'abandoned';
+  winner: Player | 'draw' | null;
+  winningLine: number[];
+  round: number;
+  exitedBy?: string;
+  reason?: string;
+  updatedAt?: number;
+}
+
+/**
+ * Ultra-low-latency WebSocket listener via RTDB (~40-90ms) for instant board moves & match cuts
+ */
+export function listenToLiveMatchMoves(
+  matchId: string,
+  onLiveUpdate: (update: LiveMatchUpdate) => void
+): Unsubscribe {
+  const liveRef = ref(rtdb, `/match_live/${matchId}`);
+  return onValue(
+    liveRef,
+    (snap) => {
+      const val = snap.val();
+      if (!val || typeof val !== 'object') return;
+
+      // RTDB strips null entries in sparse arrays — reconstruct clean 9-cell Board safely
+      const normalizedBoard: Board = Array(9).fill(null);
+      if (val.board && typeof val.board === 'object') {
+        for (let i = 0; i < 9; i++) {
+          const cell = val.board[i];
+          if (cell === 'X' || cell === 'O') {
+            normalizedBoard[i] = cell;
+          }
+        }
+      }
+
+      onLiveUpdate({
+        board: normalizedBoard,
+        currentTurn: val.currentTurn === 'O' ? 'O' : 'X',
+        status: val.status || 'active',
+        winner: val.winner ?? null,
+        winningLine: Array.isArray(val.winningLine) ? val.winningLine : [],
+        round: Number(val.round || 1),
+        exitedBy: val.exitedBy,
+        reason: val.reason,
+        updatedAt: Number(val.updatedAt || 0)
+      });
+    },
+    () => {
+      // Silently fall back to Firestore listener if RTDB path is restricted
+    }
+  );
+}
+
+/**
+ * Real-time per-match presence & instant opponent offline detector.
+ * Detects app close, network loss, tab switch (>6s), or RTDB socket disconnect immediately.
+ */
+export function setupMatchPresenceAndWatchOpponent(
+  matchId: string,
+  myUid: string,
+  opponentUid: string,
+  onOpponentOffline: () => void
+): Unsubscribe {
+  if (!matchId || !myUid || !opponentUid) return () => {};
+
+  const myPresRef = ref(rtdb, `/match_presence/${matchId}/${myUid}`);
+  const oppPresRef = ref(rtdb, `/match_presence/${matchId}/${opponentUid}`);
+  const oppStatusRef = ref(rtdb, `/status/${opponentUid}`);
+  const connectedRef = ref(rtdb, '.info/connected');
+
+  let cleanedUp = false;
+  let triggeredOffline = false;
+  let opponentSeenOnline = false;
+  let lastOppHeartbeatAt = Date.now();
+  const startedAt = Date.now();
+  let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const fireOpponentOffline = () => {
+    if (cleanedUp || triggeredOffline) return;
+    triggeredOffline = true;
+    onOpponentOffline();
+  };
+
+  const publishMyOnline = () => {
+    if (cleanedUp) return;
+    set(myPresRef, {
+      online: true,
+      lastSeen: Date.now()
+    }).catch(() => {});
+  };
+
+  const publishMyOffline = () => {
+    set(myPresRef, {
+      online: false,
+      disconnectedAt: Date.now()
+    }).catch(() => {});
+  };
+
+  const unsubConnected = onValue(connectedRef, async (snap) => {
+    if (cleanedUp) return;
+    if (snap.val() === true) {
+      try {
+        await onDisconnect(myPresRef).set({
+          online: false,
+          disconnectedAt: rtdbServerTimestamp()
+        });
+        publishMyOnline();
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  // Watch opponent's dedicated match presence node
+  const unsubOppPres = onValue(
+    oppPresRef,
+    (snap) => {
+      if (cleanedUp) return;
+      const val = snap.val();
+      if (!val) return;
+      if (val.online === true) {
+        opponentSeenOnline = true;
+        lastOppHeartbeatAt = Date.now();
+      } else if (val.online === false) {
+        const discAt = Number(val.disconnectedAt || 0);
+        if (opponentSeenOnline || discAt >= startedAt - 5000) {
+          fireOpponentOffline();
+        }
+      }
+    },
+    () => {}
+  );
+
+  // Also watch opponent's global online status node for immediate offline drops
+  const unsubOppStatus = onValue(
+    oppStatusRef,
+    (snap) => {
+      if (cleanedUp) return;
+      const val = snap.val();
+      if (!val) return;
+      if (val.isOnline === true) {
+        opponentSeenOnline = true;
+        lastOppHeartbeatAt = Date.now();
+      } else if (val.isOnline === false) {
+        const updAt = Number(val.updatedAt || val.lastSeen || 0);
+        if (opponentSeenOnline || updAt >= startedAt - 5000) {
+          fireOpponentOffline();
+        }
+      }
+    },
+    () => {}
+  );
+
+  // Fast 3-second heartbeat + watchdog for abrupt network drops (e.g. Airplane Mode / Wi-Fi off)
+  const heartbeatInterval = setInterval(() => {
+    if (cleanedUp) return;
+    if (typeof document === 'undefined' || !document.hidden) {
+      publishMyOnline();
+    }
+    const now = Date.now();
+    // If opponent was active and stopped heartbeating for > 10s, or never appeared after 14s
+    if (opponentSeenOnline && now - lastOppHeartbeatAt > 10000) {
+      fireOpponentOffline();
+    } else if (!opponentSeenOnline && now - startedAt > 14000 && now - lastOppHeartbeatAt > 12000) {
+      fireOpponentOffline();
+    }
+  }, 3000);
+
+  const handlePageHide = () => {
+    publishMyOffline();
+  };
+
+  const handleVisibility = () => {
+    if (cleanedUp) return;
+    if (document.hidden) {
+      if (hiddenTimer) clearTimeout(hiddenTimer);
+      // If player leaves app/switches away for > 6 seconds, mark offline so opponent isn't stuck
+      hiddenTimer = setTimeout(() => {
+        if (!cleanedUp && document.hidden) {
+          publishMyOffline();
+        }
+      }, 6000);
+    } else {
+      if (hiddenTimer) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+      }
+      publishMyOnline();
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibility);
+  }
+
+  return () => {
+    cleanedUp = true;
+    clearInterval(heartbeatInterval);
+    if (hiddenTimer) clearTimeout(hiddenTimer);
+    unsubConnected();
+    unsubOppPres();
+    unsubOppStatus();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    }
+  };
+}
+
+/**
+ * FAST ONLINE MOVE:
+ * 1) Pushes instantly over persistent RTDB WebSocket (~40-90ms to opponent!)
+ * 2) Persists in a single Firestore updateDoc round-trip (eliminates slow 2-step runTransaction lag!)
+ */
+export async function makeOnlineMove(
+  matchId: string,
+  cellIndex: number,
+  playerSymbol: Player,
+  currentBoard?: Board,
+  currentRound: number = 1
+) {
   const matchRef = doc(db, 'matches', matchId);
+
+  if (Array.isArray(currentBoard) && currentBoard.length === 9) {
+    if (currentBoard[cellIndex] !== null) return false;
+
+    const newBoard = [...currentBoard];
+    newBoard[cellIndex] = playerSymbol;
+
+    const outcome = checkWinner(newBoard);
+    const isOver = outcome !== null;
+    const nextTurn: Player = playerSymbol === 'X' ? 'O' : 'X';
+    const nextStatus = isOver ? 'completed' : 'active';
+    const winningLine = outcome ? outcome.line : [];
+
+    // Encode board with explicit empty markers for RTDB (RTDB strips null array elements)
+    const rtdbBoard = newBoard.map((c) => c ?? '');
+
+    // Fire instant RTDB WebSocket relay in parallel with single-trip Firestore write
+    const rtdbPromise = set(ref(rtdb, `/match_live/${matchId}`), {
+      board: rtdbBoard,
+      currentTurn: nextTurn,
+      status: nextStatus,
+      winner: outcome ? outcome.winner : null,
+      winningLine,
+      round: currentRound,
+      updatedAt: Date.now()
+    }).catch(() => {});
+
+    const firestorePromise = updateDoc(matchRef, {
+      board: newBoard,
+      currentTurn: nextTurn,
+      status: nextStatus,
+      winner: outcome ? outcome.winner : null,
+      winningLine,
+      updatedAt: serverTimestamp()
+    });
+
+    await Promise.all([rtdbPromise, firestorePromise]);
+    return true;
+  }
+
+  // Fallback transaction path if board wasn't provided
   return runTransaction(db, async (tx) => {
     const snap = await tx.get(matchRef);
     if (!snap.exists()) return false;
@@ -1240,7 +1535,9 @@ export async function makeOnlineMove(matchId: string, cellIndex: number, playerS
 
 export async function requestMatchRestart(matchId: string, uid: string) {
   const matchRef = doc(db, 'matches', matchId);
-  return runTransaction(db, async (tx) => {
+  let restartedRound: number | null = null;
+
+  await runTransaction(db, async (tx) => {
     const snap = await tx.get(matchRef);
     if (!snap.exists()) return;
     const match = snap.data() as OnlineMatch;
@@ -1250,6 +1547,7 @@ export async function requestMatchRestart(matchId: string, uid: string) {
 
     const bothReady = reqs.includes(match.playerXUid) && reqs.includes(match.playerOUid);
     if (bothReady) {
+      restartedRound = (match.round || 1) + 1;
       tx.update(matchRef, {
         board: Array(9).fill(null),
         currentTurn: 'X',
@@ -1257,7 +1555,7 @@ export async function requestMatchRestart(matchId: string, uid: string) {
         winner: null,
         winningLine: [],
         restartRequests: [],
-        round: (match.round || 1) + 1,
+        round: restartedRound,
         restartedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -1268,6 +1566,18 @@ export async function requestMatchRestart(matchId: string, uid: string) {
       });
     }
   });
+
+  if (restartedRound !== null) {
+    set(ref(rtdb, `/match_live/${matchId}`), {
+      board: Array(9).fill(''),
+      currentTurn: 'X',
+      status: 'active',
+      winner: null,
+      winningLine: [],
+      round: restartedRound,
+      updatedAt: Date.now()
+    }).catch(() => {});
+  }
 }
 
 /**
@@ -1289,10 +1599,23 @@ export async function deleteMatchChat(matchId: string) {
 }
 
 /**
- * When either player exits, the room and match are disabled/abandoned
- * for both players immediately, and chat is wiped clean!
+ * When either player exits or goes offline, notify immediately via RTDB (~50ms)
+ * AND abandon the Firestore match & room, wiping chat clean!
  */
-export async function exitOnlineMatch(matchId: string, uid: string) {
+export async function exitOnlineMatch(matchId: string, uid: string, reason: 'left' | 'offline' = 'left') {
+  // Instant RTDB cut signal so the other player exits immediately
+  set(ref(rtdb, `/match_live/${matchId}`), {
+    status: 'abandoned',
+    exitedBy: uid,
+    reason,
+    updatedAt: Date.now()
+  }).catch(() => {});
+
+  set(ref(rtdb, `/match_presence/${matchId}/${uid}`), {
+    online: false,
+    disconnectedAt: Date.now()
+  }).catch(() => {});
+
   const matchRef = doc(db, 'matches', matchId);
   try {
     const snap = await getDoc(matchRef);
@@ -1305,6 +1628,7 @@ export async function exitOnlineMatch(matchId: string, uid: string) {
     await updateDoc(matchRef, {
       status: 'abandoned',
       exitedBy: uid,
+      exitReason: reason,
       endedAt: serverTimestamp()
     });
   } catch {
