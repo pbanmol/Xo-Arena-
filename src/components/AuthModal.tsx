@@ -77,7 +77,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto ${
+      className={`fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto ${
         isEntryGate ? 'bg-[var(--bg-base)]' : 'bg-black/60 backdrop-blur-sm'
       } animate-in fade-in duration-150`}
     >
@@ -168,11 +168,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  name="name"
+                  autoComplete="name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
                   placeholder="e.g. PB ANMOL"
                   maxLength={20}
-                  className="w-full px-3 py-2 rounded-xl border text-xs outline-none font-semibold"
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none font-semibold"
                   style={{
                     backgroundColor: 'var(--bg-surface-elevated)',
                     borderColor: 'var(--border-subtle)',
@@ -211,10 +214,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </label>
             <input
               type="email"
+              name="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value.replace(/\s+/g, ''))}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               placeholder="name@example.com"
-              className="w-full px-3 py-2 rounded-xl border text-xs outline-none"
+              className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',
@@ -229,10 +239,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </label>
             <input
               type="password"
+              name="password"
+              autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })}
               placeholder="Minimum 6 characters"
-              className="w-full px-3 py-2 rounded-xl border text-xs outline-none"
+              className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',

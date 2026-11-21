@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-dark="true"], [data-dark="true"] *, [data-theme="neon"], [data-theme="neon"] *, [data-theme="black"], [data-theme="black"] *));
 
 @layer base {
   :root {
@@ -156,6 +157,13 @@ body {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .font-display {

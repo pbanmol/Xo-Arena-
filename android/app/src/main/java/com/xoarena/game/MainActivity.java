@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.WindowManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
@@ -24,6 +25,10 @@ public class MainActivity extends BridgeActivity {
 
         // Respect status bar, navigation bar, display cutout, and keyboard insets on Android 10-16+
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Prevent double-resizing when WindowInsetsCompat.Type.ime() applies bottom padding
+            getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
+        }
 
         View rootView = findViewById(android.R.id.content);
         if (rootView != null) {
@@ -44,9 +49,13 @@ public class MainActivity extends BridgeActivity {
                 Insets bars = windowInsets.getInsets(
                     WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout()
-                    | WindowInsetsCompat.Type.ime()
                 );
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                int bottomPadding = bars.bottom;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+                    bottomPadding = Math.max(bars.bottom, ime.bottom);
+                }
+                view.setPadding(bars.left, bars.top, bars.right, bottomPadding);
                 return WindowInsetsCompat.CONSUMED;
             });
         }

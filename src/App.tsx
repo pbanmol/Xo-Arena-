@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   AIDifficulty,
   AppTheme,
@@ -169,34 +169,44 @@ export default function App() {
     let presenceCleanup: any = null;
     const authTimeout = setTimeout(() => {
       setAuthReady(true);
-    }, 2000);
+    }, 1500);
 
-    const unsubAuth = initAuthListener(async (user) => {
-      clearTimeout(authTimeout);
-      setCurrentUser(user);
-      setAuthReady(true);
-      if (user) {
-        if (!user.isAnonymous) {
-          setHasChosenEntryMode(true);
+    let unsubAuth: () => void = () => {};
+    try {
+      unsubAuth = initAuthListener(async (user) => {
+        clearTimeout(authTimeout);
+        setCurrentUser(user);
+        setAuthReady(true);
+        if (user) {
+          if (!user.isAnonymous) {
+            setHasChosenEntryMode(true);
+          }
+          try {
+            // Lock permanent, immutable UIDs once and for all (Anmol is permanently UID 1)
+            await stabilizePermanentPlayerUids();
+
+            // Load user profile & sync with Firestore
+            const savedProf = storage.getProfile(user.uid);
+            const synced = await syncUserProfile({
+              ...savedProf,
+              uid: user.uid,
+              isGuest: Boolean(user.isAnonymous),
+              displayName: user.displayName || savedProf.displayName
+            });
+            setProfile(synced);
+            storage.saveProfile(synced);
+
+            // Setup RTDB Presence
+            presenceCleanup = setupPresence(user, synced);
+          } catch (err) {
+            console.warn('Auth profile sync notice:', err);
+          }
         }
-        // Lock permanent, immutable UIDs once and for all (Anmol is permanently UID 1)
-        await stabilizePermanentPlayerUids();
-
-        // Load user profile & sync with Firestore
-        const savedProf = storage.getProfile(user.uid);
-        const synced = await syncUserProfile({
-          ...savedProf,
-          uid: user.uid,
-          isGuest: Boolean(user.isAnonymous),
-          displayName: user.displayName || savedProf.displayName
-        });
-        setProfile(synced);
-        storage.saveProfile(synced);
-
-        // Setup RTDB Presence
-        presenceCleanup = setupPresence(user, synced);
-      }
-    });
+      });
+    } catch {
+      clearTimeout(authTimeout);
+      setAuthReady(true);
+    }
 
     return () => {
       clearTimeout(authTimeout);
@@ -239,7 +249,7 @@ export default function App() {
       (challenge) => {
         if (challenge) {
           // Check if sender is blocked
-          if (profile.blockedUids.includes(challenge.senderUid)) {
+          if ((profile.blockedUids || []).includes(challenge.senderUid)) {
             declineChallenge(currentUser.uid);
             return;
           }
@@ -746,8 +756,12 @@ export default function App() {
     addToast(`Theme: ${themes[nextIdx].toUpperCase()}`);
   };
 
+  const handleSplashComplete = useCallback(() => {
+    setIsAppLoading(false);
+  }, []);
+
   if (isAppLoading || !authReady) {
-    return <SplashScreen onComplete={() => setIsAppLoading(false)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   const isSignedInAccount = Boolean(currentUser && !currentUser.isAnonymous);

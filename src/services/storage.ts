@@ -39,22 +39,30 @@ export const storage = {
     if (uid) {
       const savedUidProfile = this.get<UserProfile | null>(`profile_${uid}`, null);
       if (savedUidProfile) {
+        const normalized = {
+          ...savedUidProfile,
+          blockedUids: Array.isArray(savedUidProfile.blockedUids) ? savedUidProfile.blockedUids : []
+        };
         if (!uid.startsWith('guest_')) {
-          return { ...savedUidProfile, isGuest: false };
+          return { ...normalized, isGuest: false };
         }
-        return savedUidProfile;
+        return normalized;
       }
     }
     const profile = this.get<UserProfile | null>('player_profile', null);
     if (profile) {
+      const normalized = {
+        ...profile,
+        blockedUids: Array.isArray(profile.blockedUids) ? profile.blockedUids : []
+      };
       if (uid && !uid.startsWith('guest_')) {
-        return { ...profile, uid, isGuest: false };
+        return { ...normalized, uid, isGuest: false };
       }
       // If guest, ensure numericUid is removed
-      if (profile.isGuest) {
-        delete profile.numericUid;
+      if (normalized.isGuest) {
+        delete normalized.numericUid;
       }
-      return profile;
+      return normalized;
     }
 
     const newProfile: UserProfile = {

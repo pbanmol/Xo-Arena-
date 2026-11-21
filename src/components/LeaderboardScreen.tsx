@@ -39,7 +39,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
           </h3>
 
           <p className="text-xs text-slate-400 max-w-sm mb-5 leading-relaxed">
-            गेस्ट प्लेयर्स 100% केवल ऑफलाइन खेलते हैं। ग्लोबल लीडरबोर्ड पर केवल वेरिफाइड ऑनलाइन प्लेयर्स की रैंक शो होती है। टॉप 10 में आने और अपनी परमानेंट <strong className="text-[var(--accent-primary)] font-mono">XO ARENA UID</strong> पाने के लिए ईमेल से साइन इन या रजिस्टर करें!
+            Guest players play strictly offline. Only verified online players appear on the Global Leaderboard. Sign in or register with email to get your permanent <strong className="text-[var(--accent-primary)] font-mono">XO ARENA UID</strong> and compete for the Top 10!
           </p>
 
           <button

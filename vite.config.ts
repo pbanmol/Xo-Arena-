@@ -1,27 +1,50 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import { defineConfig } from 'vite';
 
+function stripChatScreenshotsFromBuild() {
+  return {
+    name: 'strip-chat-screenshots',
+    closeBundle() {
+      const target = path.resolve(import.meta.dirname, 'dist/assets/aistudio');
+      if (fs.existsSync(target)) {
+        fs.rmSync(target, { recursive: true, force: true });
+      }
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), stripChatScreenshotsFromBuild()],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
       },
     },
+    optimizeDeps: {
+      entries: ['index.html'],
+    },
     server: {
       host: '0.0.0.0',
       port: 3000,
+      strictPort: true,
       allowedHosts: true as const,
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch:
-        process.env.DISABLE_HMR === 'true'
-          ? null
-          : {
-              ignored: ['**/android/**', '**/.gradle/**', '**/gradle/**', '**/dist/**'],
-            },
+      hmr: false,
+      watch: {
+        ignored: [
+          '**/android/**',
+          '**/.gradle/**',
+          '**/gradle/**',
+          '**/dist/**',
+          '**/public/assets/aistudio/**',
+        ],
+      },
+      warmup: {
+        clientFiles: ['./index.html', './src/main.tsx'],
+      },
     },
   };
 });

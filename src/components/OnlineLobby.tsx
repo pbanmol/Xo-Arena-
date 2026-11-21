@@ -46,6 +46,18 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
   const [isSearchingDb, setIsSearchingDb] = useState(false);
   const [dbSearchError, setDbSearchError] = useState('');
 
+  // Filter online players by Name or sequential XO Arena Numeric UID
+  const filteredPlayers = useMemo(() => {
+    const others = onlinePlayers.filter((p) => p.uid !== myUid);
+    if (!searchQuery.trim()) return others;
+    const q = searchQuery.toLowerCase().trim();
+    return others.filter(
+      (p) =>
+        p.displayName.toLowerCase().includes(q) ||
+        String(p.numericUid || '').includes(q)
+    );
+  }, [onlinePlayers, myUid, searchQuery]);
+
   if (isGuest) {
     return (
       <div className="flex flex-col gap-4 animate-in fade-in duration-200">
@@ -121,18 +133,6 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
     if (!joinCodeInput.trim()) return;
     onJoinPrivateRoom(joinCodeInput.trim());
   };
-
-  // Filter online players by Name or sequential XO Arena Numeric UID
-  const filteredPlayers = useMemo(() => {
-    const others = onlinePlayers.filter((p) => p.uid !== myUid);
-    if (!searchQuery.trim()) return others;
-    const q = searchQuery.toLowerCase().trim();
-    return others.filter(
-      (p) =>
-        p.displayName.toLowerCase().includes(q) ||
-        String(p.numericUid || '').includes(q)
-    );
-  }, [onlinePlayers, myUid, searchQuery]);
 
   const handleGlobalDbSearch = async () => {
     if (!searchQuery.trim()) return;

@@ -86,9 +86,20 @@ export async function getNextServerNumericUid(): Promise<number> {
  * If an active session exists (user already logged in or guest), connects immediately.
  */
 export function initAuthListener(onUserChange: (user: User | null) => void): Unsubscribe {
-  return onAuthStateChanged(auth, (user) => {
-    onUserChange(user);
-  });
+  try {
+    return onAuthStateChanged(
+      auth,
+      (user) => {
+        onUserChange(user);
+      },
+      () => {
+        onUserChange(null);
+      }
+    );
+  } catch {
+    setTimeout(() => onUserChange(null), 0);
+    return () => {};
+  }
 }
 
 export async function loginWithEmail(email: string, pass: string) {
