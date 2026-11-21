@@ -1,0 +1,129 @@
+name: Build and Publish iPhone IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios-ipa:
+    name: Build and Publish iOS IPA
+    runs-on: macos-latest
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies and build web app
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+
+      - name: Prepare 1024x1024 iOS App Icon
+        run: |
+          if [ -f "public/icon.png" ]; then
+            mkdir -p ios/App/App/Assets.xcassets/AppIcon.appiconset
+            sips -s format png -z 1024 1024 public/icon.png --out ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          fi
+
+      - name: Build Unsigned iOS Release App (.app)
+        id: build_xcode
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath ios/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            MARKETING_VERSION="1.0.0" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            build 2>&1 | tee ios_build.log
+
+      - name: Report Xcode Build Logs on Failure
+        if: failure()
+        run: |
+          if [ -f ios_build.log ]; then
+            echo "### ❌ iOS Xcode Build Failed" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 120 ios_build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Package .ipa Archive
+        id: pack_ipa
+        run: |
+          app_path="ios/DerivedData/Build/Products/Release-iphoneos/App.app"
+          if [ ! -d "$app_path" ]; then
+            echo "Error: Built App.app not found at $app_path"
+            find ios/DerivedData -name "*.app" || true
+            exit 1
+          fi
+
+          rm -rf ipa_stage release_ipa_dir
+          mkdir -p ipa_stage/Payload release_ipa_dir
+          cp -R "$app_path" ipa_stage/Payload/App.app
+
+          ipa_name="xo-arena-v1.0.0-iphone-build-${{ github.run_number }}.ipa"
+          (cd ipa_stage && zip -r -q "../release_ipa_dir/$ipa_name" Payload)
+
+          if [ ! -s "release_ipa_dir/$ipa_name" ]; then
+            echo "Error: Generated IPA file is missing or empty"
+            exit 1
+          fi
+
+          echo "ipa_path=release_ipa_dir/$ipa_name" >> $GITHUB_OUTPUT
+          echo "ipa_name=$ipa_name" >> $GITHUB_OUTPUT
+          ls -lh "release_ipa_dir/$ipa_name"
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xo-arena-ios-ipa
+          path: ${{ steps.pack_ipa.outputs.ipa_path }}
+          if-no-files-found: error
+
+      - name: Publish iPhone IPA to GitHub Releases
+        id: publish_ios_release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ipa_path="${{ steps.pack_ipa.outputs.ipa_path }}"
+          tag="ios-ipa-v1.0.0-build-${{ github.run_number }}-${{ github.run_attempt }}"
+          title="XO Arena v1.0.0 — iPhone IPA Build #${{ github.run_number }}"
+          gh release create "$tag" "$ipa_path" \
+            --target "${{ github.sha }}" \
+            --title "$title" \
+            --latest=false \
+            --notes "Unsigned iOS IPA for XO Arena v1.0.0 (Made by PBX).
+          - Format: .ipa (iOS ARM64 Release)
+          - Install on iPhone using AltStore, SideStore, Sideloadly, TrollStore, or Scarlet (Apple requires signing for .ipa sideloading).
+          - Or play immediately on any iPhone without sideloading via Safari -> Share -> Add to Home Screen."
+
+      - name: Report iOS IPA Build Result
+        if: always()
+        run: |
+          echo "### iPhone IPA Build & Release Report" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.publish_ios_release.outcome }}" == "success" ]; then
+            echo "✅ iPhone IPA published to GitHub Releases: **${{ steps.pack_ipa.outputs.ipa_name }}**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.pack_ipa.outcome }}" == "success" ]; then
+            echo "✅ iPhone IPA built and uploaded as workflow artifact **xo-arena-ios-ipa**." >> $GITHUB_STEP_SUMMARY
+          fi

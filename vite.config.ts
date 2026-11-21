@@ -36,6 +36,7 @@ export default defineConfig(() => {
       watch: {
         ignored: [
           '**/android/**',
+          '**/ios/**',
           '**/.gradle/**',
           '**/gradle/**',
           '**/dist/**',
