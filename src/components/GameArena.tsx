@@ -332,19 +332,25 @@ export const GameArena: React.FC<GameArenaProps> = ({
           </div>
 
           {/* Chat input */}
-          <form onSubmit={handleSendChat} className="flex border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+          <form onSubmit={handleSendChat} className="flex border-t scroll-mb-6" style={{ borderColor: 'var(--border-subtle)' }}>
             <input
               type="text"
               value={chatText}
               onChange={(e) => setChatText(e.target.value)}
+              onFocus={(e) => {
+                const target = e.currentTarget;
+                setTimeout(() => {
+                  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 200);
+              }}
               placeholder="Type in match chat..."
               maxLength={150}
-              className="flex-1 px-3 py-2 text-base bg-transparent outline-none"
+              className="flex-1 px-3 py-2.5 text-base bg-transparent outline-none scroll-mt-24 scroll-mb-8"
               style={{ color: 'var(--text-main)' }}
             />
             <button
               type="submit"
-              className="px-3.5 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 active:scale-95"
+              className="px-4 py-2.5 text-xs font-bold text-white transition-opacity hover:opacity-90 active:scale-95 cursor-pointer"
               style={{ backgroundColor: 'var(--accent-primary)' }}
             >
               Send

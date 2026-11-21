@@ -202,7 +202,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="e.g. PBX"
               maxLength={22}
-              className="flex-1 px-3 py-2.5 rounded-xl border text-base font-semibold outline-none"
+              className="flex-1 px-3 py-2.5 rounded-xl border text-base font-semibold outline-none scroll-mt-24 scroll-mb-8"
               style={{
                 backgroundColor: 'var(--bg-surface-elevated)',
                 borderColor: 'var(--border-subtle)',

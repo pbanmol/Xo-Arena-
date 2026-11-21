@@ -14,60 +14,37 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
   isGuest,
   onOpenAuth
 }) => {
-  if (isGuest) {
-    return (
-      <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-        <div
-          className="rounded-3xl border p-6 flex flex-col items-center text-center shadow-lg relative overflow-hidden"
-          style={{
-            backgroundColor: 'var(--bg-card)',
-            borderColor: 'var(--border-subtle)'
-          }}
-        >
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-3 shadow-md"
-            style={{
-              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              color: '#fff'
-            }}
-          >
-            🏆🔒
-          </div>
-
-          <h3 className="font-display font-black text-2xl tracking-wider mb-2" style={{ color: 'var(--text-main)' }}>
-            LEADERBOARD LOCKED
-          </h3>
-
-          <p className="text-xs text-slate-400 max-w-sm mb-5 leading-relaxed">
-            Guest players play strictly offline. Only verified online players appear on the Global Leaderboard. Sign in or register with email to get your permanent <strong className="text-[var(--accent-primary)] font-mono">XO ARENA UID</strong> and compete for the Top 10!
-          </p>
-
-          <button
-            onClick={onOpenAuth}
-            className="w-full max-w-xs py-3.5 px-6 rounded-xl text-white font-bold text-sm tracking-wide shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-            style={{
-              backgroundColor: 'var(--accent-primary)',
-              boxShadow: 'var(--accent-glow)'
-            }}
-          >
-            🔑 Sign In / Register to Join Leaderboard
-          </button>
-
-          <div className="mt-6 pt-5 border-t w-full flex flex-col items-center gap-2" style={{ borderColor: 'var(--border-subtle)' }}>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Offline Play Unlocked
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              You can play <strong>Play with Computer</strong> and <strong>Play with Friend</strong> offline anytime without signing in!
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4 animate-in fade-in duration-200">
+      {isGuest && (
+        <div
+          className="rounded-2xl border p-4 flex items-center justify-between gap-3 shadow-sm"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-accent)'
+          }}
+        >
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold flex items-center gap-1.5" style={{ color: 'var(--text-main)' }}>
+              <span>🏆</span>
+              <span>Playing Offline as Guest</span>
+            </div>
+            <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-muted)' }}>
+              Sign in to get your permanent <strong className="text-[var(--accent-primary)] font-mono">XO ARENA UID</strong> and climb these global ranks!
+            </p>
+          </div>
+          {onOpenAuth && (
+            <button
+              onClick={onOpenAuth}
+              className="px-3.5 py-2 rounded-xl text-white font-bold text-xs shadow-sm transition-transform active:scale-95 flex-shrink-0 cursor-pointer"
+              style={{ backgroundColor: 'var(--accent-primary)' }}
+            >
+              Sign In
+            </button>
+          )}
+        </div>
+      )}
+
       <div
         className="rounded-2xl border p-4.5 shadow-sm"
         style={{
@@ -83,7 +60,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
             </h3>
           </div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Top 10 Competitors
+            Top {Math.max(10, players.length)} Competitors
           </span>
         </div>
 

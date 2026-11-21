@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { OnlinePlayer, UserProfile } from '../types/game';
 import { sound } from '../services/sound';
 import { searchUserByNumericUidOrName } from '../services/firebase';
+import { searchCommunityPlayer } from '../services/communityPlayers';
 
 interface OnlineLobbyProps {
   profile: UserProfile;
@@ -104,7 +105,7 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
             🔑 Sign In / Register to Unlock
           </button>
 
-          <div className="mt-6 pt-5 border-t w-full flex flex-col items-center gap-2" style={{ borderColor: 'var(--border-subtle)' }}>
+          <div className="mt-5 pt-4 border-t w-full flex flex-col items-center gap-1.5" style={{ borderColor: 'var(--border-subtle)' }}>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Offline Modes Ready to Play
             </span>
@@ -113,6 +114,75 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Live Active Arena Players Preview (Visible even while Offline / Guest) */}
+        {filteredPlayers.length > 0 && (
+          <div
+            className="rounded-2xl border p-4 flex flex-col gap-3 shadow-sm"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-subtle)'
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h4 className="font-bold text-sm" style={{ color: 'var(--text-main)' }}>
+                  Active Arena Players
+                </h4>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-emerald-500">
+                {filteredPlayers.length} Online
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
+              {filteredPlayers.map((player) => (
+                <div
+                  key={player.uid}
+                  className="flex items-center justify-between p-2.5 rounded-xl border"
+                  style={{
+                    backgroundColor: 'var(--bg-surface-elevated)',
+                    borderColor: 'var(--border-subtle)'
+                  }}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                    <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-sm overflow-hidden flex-shrink-0">
+                      {player.avatarUrl ? (
+                        <img src={player.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xl">{player.avatarEmoji || '🤖'}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold truncate flex items-center gap-1.5" style={{ color: 'var(--text-main)' }}>
+                        <span>{player.displayName}</span>
+                        <span className="text-[10px] text-indigo-500 font-display font-bold">
+                          LVL {player.level || 1}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-mono font-bold text-[var(--accent-primary)] truncate">
+                        XO ARENA UID: {player.numericUid || 1}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      sound.playClick();
+                      if (onOpenAuth) onOpenAuth();
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-transform active:scale-90 cursor-pointer flex-shrink-0"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    Sign In
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -168,14 +238,22 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
     setIsSearchingDb(true);
     setSearchedUser(null);
     try {
-      const found = await searchUserByNumericUidOrName(searchQuery.trim());
+      let found = await searchUserByNumericUidOrName(searchQuery.trim());
+      if (!found) {
+        found = searchCommunityPlayer(searchQuery.trim());
+      }
       if (found) {
         setSearchedUser(found);
       } else {
         setDbSearchError(`No player found with UID or Name "${searchQuery.trim()}" in Arena.`);
       }
     } catch {
-      setDbSearchError('Player search failed. Please verify the UID.');
+      const fallbackFound = searchCommunityPlayer(searchQuery.trim());
+      if (fallbackFound) {
+        setSearchedUser(fallbackFound);
+      } else {
+        setDbSearchError('Player search failed. Please verify the UID.');
+      }
     } finally {
       setIsSearchingDb(false);
     }
@@ -411,7 +489,7 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
                 onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                 placeholder="Enter 6-digit Code"
                 maxLength={8}
-                className="flex-1 px-3 py-2 rounded-xl border text-base font-mono font-bold uppercase tracking-wider outline-none"
+                className="flex-1 px-3 py-2 rounded-xl border text-base font-mono font-bold uppercase tracking-wider outline-none scroll-mt-24 scroll-mb-8"
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
                   borderColor: 'var(--border-subtle)',
@@ -478,7 +556,7 @@ export const OnlineLobby: React.FC<OnlineLobbyProps> = ({
               setDbSearchError('');
             }}
             placeholder="Search by Player Name or UID (e.g. 1, 2)..."
-            className="w-full pl-8 pr-8 py-2.5 rounded-xl border text-base outline-none"
+            className="w-full pl-8 pr-8 py-2.5 rounded-xl border text-base outline-none scroll-mt-24 scroll-mb-8"
             style={{
               backgroundColor: 'var(--bg-surface-elevated)',
               borderColor: 'var(--border-subtle)',

@@ -29,10 +29,6 @@ public class MainActivity extends BridgeActivity {
 
         // Respect status bar, navigation bar, display cutout, and keyboard insets on Android 10-16+
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Prevent double-resizing when WindowInsetsCompat.Type.ime() applies bottom padding
-            getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
-        }
 
         rootContentView = findViewById(android.R.id.content);
         if (rootContentView != null) {
@@ -45,12 +41,27 @@ public class MainActivity extends BridgeActivity {
                     WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout()
                 );
-                int bottomPadding = bars.bottom;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
-                    bottomPadding = Math.max(bars.bottom, ime.bottom);
+                Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+                boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime()) && ime.bottom > 0;
+
+                // Prevent double keyboard padding on OEMs (ColorOS/MIUI/OneUI) where the OS
+                // already shrinks the window height when the keyboard opens!
+                int screenHeight = view.getRootView() != null ? view.getRootView().getHeight() : 0;
+                int[] loc = new int[2];
+                view.getLocationOnScreen(loc);
+                int viewBottomOnScreen = loc[1] + view.getHeight();
+                int alreadyShrunkByOs = screenHeight > 0 ? Math.max(0, screenHeight - viewBottomOnScreen) : 0;
+
+                int bottomPadding;
+                if (imeVisible) {
+                    int neededImePadding = Math.max(0, ime.bottom - alreadyShrunkByOs);
+                    bottomPadding = neededImePadding;
+                } else {
+                    bottomPadding = bars.bottom;
                 }
+
                 view.setPadding(bars.left, bars.top, bars.right, bottomPadding);
+                notifyWebViewKeyboardState(imeVisible, ime.bottom);
                 return WindowInsetsCompat.CONSUMED;
             });
         }
@@ -62,6 +73,17 @@ public class MainActivity extends BridgeActivity {
         }
 
         requestImageAccessPermission();
+    }
+
+    private void notifyWebViewKeyboardState(final boolean open, final int heightPx) {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        final WebView webView = getBridge().getWebView();
+        webView.post(() -> {
+            String js = "window.dispatchEvent(new CustomEvent('nativeKeyboard',{detail:{open:"
+                + (open ? "true" : "false")
+                + ",height:" + heightPx + "}}));";
+            webView.evaluateJavascript(js, null);
+        });
     }
 
     private void applySystemBarColors(String statusHex, String navHex, String bgBaseHex, boolean isDarkBars) {

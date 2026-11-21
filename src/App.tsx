@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   AIDifficulty,
   AppTheme,
@@ -17,6 +17,12 @@ import { sound } from './services/sound';
 import { haptics } from './services/haptics';
 import { applySystemBarsTheme } from './services/systemBars';
 import { checkWinner, getAIMove } from './services/ai';
+import {
+  getDynamicCommunityOnlinePlayers,
+  getDynamicCommunityProfiles,
+  getCommunityPlayerSkill,
+  isCommunityPlayerUid
+} from './services/communityPlayers';
 import {
   acceptChallenge,
   cancelOutgoingChallenge,
@@ -63,13 +69,21 @@ import { ToastContainer, ToastItem } from './components/Toast';
 import { SplashScreen } from './components/SplashScreen';
 
 export default function App() {
-  // Initial App Startup Splash & Entry Gate
+  // Initial App Startup Splash & Entry Gate (Synchronously detect returning signed-in user to guarantee ZERO login flash)
   const [isAppLoading, setIsAppLoading] = useState(true);
-  const [authReady, setAuthReady] = useState(false);
-  const [hasChosenEntryMode, setHasChosenEntryMode] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState<boolean>(() =>
+    Boolean(storage.get<string | null>('signed_in_uid', null))
+  );
+  const [authReady, setAuthReady] = useState<boolean>(() =>
+    Boolean(storage.get<string | null>('signed_in_uid', null))
+  );
+  const [hasChosenEntryMode, setHasChosenEntryMode] = useState<boolean>(() =>
+    Boolean(storage.get<string | null>('signed_in_uid', null))
+  );
 
-  // Navigation
+  // Navigation & Mobile Soft Keyboard State
   const [activeTab, setActiveTab] = useState<TabScreen>('home');
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // Settings & Theme (Default: Crimson Red, White/Light Mode)
   const [theme, setTheme] = useState<AppTheme>(() => storage.get('theme', 'crimson'));
@@ -77,15 +91,19 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => storage.get('sound', true));
   const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(() => storage.get('haptics', true));
 
-  // User Profile & Auth
-  const [profile, setProfile] = useState<UserProfile>(() => storage.getProfile());
+  // User Profile & Auth (Load cached signed-in profile immediately on reopen)
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    const savedUid = storage.get<string | null>('signed_in_uid', null);
+    return savedUid ? storage.getProfile(savedUid) : storage.getProfile();
+  });
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Lists
+  // Lists & Dynamic Daily-Growing Community Roster Ticker
   const [history, setHistory] = useState<MatchRecord[]>(() => storage.getHistory());
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>(() => storage.getAchievements());
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
+  const [communityTick, setCommunityTick] = useState<number>(() => Date.now());
 
   // Toast notifications
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -211,12 +229,109 @@ export default function App() {
     };
   }, []);
 
+  // Refresh dynamic community stats & online rotation gently every 60s
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCommunityTick(Date.now());
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Mobile Soft Keyboard & Input Focus Manager:
+  // Hides fixed BottomNav while typing and smoothly scrolls focused <main> inputs into view
+  useEffect(() => {
+    const isTextInputEl = (el: Element | null): el is HTMLElement => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === 'TEXTAREA') return true;
+      if (tag === 'INPUT') {
+        const type = ((el as HTMLInputElement).type || 'text').toLowerCase();
+        return !['file', 'checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color'].includes(type);
+      }
+      return false;
+    };
+
+    let blurTimer: any = null;
+    let scrollTimer: any = null;
+    let baselineHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+    const scrollFocusedMainInput = () => {
+      const active = document.activeElement;
+      if (isTextInputEl(active) && active.closest('main')) {
+        if (scrollTimer) clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+          active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 160);
+      }
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as Element | null;
+      if (isTextInputEl(target)) {
+        if (blurTimer) clearTimeout(blurTimer);
+        setIsKeyboardOpen(true);
+        if (target.closest('main')) {
+          scrollFocusedMainInput();
+        }
+      }
+    };
+
+    const handleFocusOut = () => {
+      if (blurTimer) clearTimeout(blurTimer);
+      blurTimer = setTimeout(() => {
+        if (!isTextInputEl(document.activeElement)) {
+          setIsKeyboardOpen(false);
+        }
+      }, 120);
+    };
+
+    const handleNativeKeyboard = (e: Event) => {
+      const detail = (e as CustomEvent<{ open?: boolean }>).detail;
+      if (detail?.open) {
+        setIsKeyboardOpen(true);
+        scrollFocusedMainInput();
+      } else {
+        setIsKeyboardOpen(false);
+      }
+    };
+
+    const handleViewportResize = () => {
+      const vv = window.visualViewport;
+      const currentH = vv ? vv.height : window.innerHeight;
+      if (!isTextInputEl(document.activeElement) && currentH > baselineHeight) {
+        baselineHeight = currentH;
+      }
+      const shrink = baselineHeight - currentH;
+      if (shrink > 130) {
+        setIsKeyboardOpen(true);
+        scrollFocusedMainInput();
+      } else if (shrink < 70 && !isTextInputEl(document.activeElement)) {
+        setIsKeyboardOpen(false);
+      }
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    window.addEventListener('nativeKeyboard', handleNativeKeyboard);
+    window.visualViewport?.addEventListener('resize', handleViewportResize);
+
+    return () => {
+      if (blurTimer) clearTimeout(blurTimer);
+      if (scrollTimer) clearTimeout(scrollTimer);
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+      window.removeEventListener('nativeKeyboard', handleNativeKeyboard);
+      window.visualViewport?.removeEventListener('resize', handleViewportResize);
+    };
+  }, []);
+
   // Auth & Presence Initialization
   useEffect(() => {
     let presenceCleanup: any = null;
     const authTimeout = setTimeout(() => {
       setAuthReady(true);
-    }, 1500);
+      setIsRestoringSession(false);
+    }, 4500);
 
     let unsubAuth: () => void = () => {};
     try {
@@ -224,8 +339,10 @@ export default function App() {
         clearTimeout(authTimeout);
         setCurrentUser(user);
         setAuthReady(true);
+        setIsRestoringSession(false);
         if (user) {
           if (!user.isAnonymous) {
+            storage.set('signed_in_uid', user.uid);
             setHasChosenEntryMode(true);
           }
           try {
@@ -248,11 +365,18 @@ export default function App() {
           } catch (err) {
             console.warn('Auth profile sync notice:', err);
           }
+        } else {
+          // Confirmed signed-out state from Firebase
+          storage.set('signed_in_uid', null);
+          if (!profileRef.current.isGuest) {
+            setHasChosenEntryMode(false);
+          }
         }
       });
     } catch {
       clearTimeout(authTimeout);
       setAuthReady(true);
+      setIsRestoringSession(false);
     }
 
     return () => {
@@ -880,7 +1004,7 @@ export default function App() {
       outgoingChallengeTimerRef.current = null;
     }
     setOutgoingChallenge((prev) => {
-      if (cancelRemote && prev) {
+      if (cancelRemote && prev && !isCommunityPlayerUid(prev.targetUid)) {
         cancelOutgoingChallenge(prev.targetUid, prev.id).catch(() => {});
       }
       return null;
@@ -1065,6 +1189,35 @@ export default function App() {
       sound.playChallengeSent();
       haptics.trigger(30);
 
+      // Direct challenge to an active dynamic community competitor
+      if (isCommunityPlayerUid(targetUid)) {
+        const simChallengeId = `sim_ch_${Date.now()}`;
+        setOutgoingChallenge({ id: simChallengeId, targetUid, targetName });
+        addToast(`Challenge sent to ${targetName}! Waiting for acceptance...`);
+
+        outgoingChallengeTimerRef.current = setTimeout(() => {
+          clearOutgoingChallenge(false);
+          sound.playJoin();
+          haptics.trigger([40, 40, 80]);
+          addToast(`${targetName} accepted! Entering match...`, 'success');
+          cancelPendingAIMove();
+          setAiDifficulty(getCommunityPlayerSkill(targetUid));
+          setGameMode('computer');
+          setBoard(Array(9).fill(null));
+          setCurrentTurn('X');
+          setWinningLine([]);
+          setIsGameOver(false);
+          setMoveHistory([]);
+          setPlayerNames({
+            X: profileRef.current.displayName || 'Player X',
+            O: targetName
+          });
+          setScores({ X: 0, O: 0, draws: 0 });
+          setActiveTab('arena');
+        }, 1600);
+        return;
+      }
+
       const challengeId = await sendDirectChallenge(targetUid, profileRef.current);
       setOutgoingChallenge({ id: challengeId, targetUid, targetName });
       addToast(`Challenge sent to ${targetName}! Waiting for acceptance...`);
@@ -1138,6 +1291,40 @@ export default function App() {
     addToast(`Theme: ${themes[nextIdx].toUpperCase()}`);
   };
 
+  // Merge real Firebase leaderboard with daily-growing community players (works both offline & online)
+  const mergedLeaderboard = useMemo(() => {
+    const byUid = new Map<string, UserProfile>();
+    const communityProfiles = getDynamicCommunityProfiles(communityTick);
+    communityProfiles.forEach((p) => {
+      if (p.uid) byUid.set(p.uid, p);
+    });
+    leaderboard.forEach((p) => {
+      if (p.uid) byUid.set(p.uid, p);
+    });
+    return Array.from(byUid.values())
+      .sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0))
+      .slice(0, 20);
+  }, [leaderboard, communityTick]);
+
+  // Merge real online Firebase players (always listed first!) with live rotating community players
+  const mergedOnlinePlayers = useMemo(() => {
+    const result: OnlinePlayer[] = [];
+    const seen = new Set<string>();
+    onlinePlayers.forEach((p) => {
+      if (p.uid && p.uid !== currentUser?.uid && !seen.has(p.uid)) {
+        seen.add(p.uid);
+        result.push(p);
+      }
+    });
+    getDynamicCommunityOnlinePlayers(communityTick).forEach((p) => {
+      if (p.uid && !seen.has(p.uid)) {
+        seen.add(p.uid);
+        result.push(p);
+      }
+    });
+    return result;
+  }, [onlinePlayers, communityTick, currentUser?.uid]);
+
   const handleSplashComplete = useCallback(() => {
     setIsAppLoading(false);
   }, []);
@@ -1146,7 +1333,10 @@ export default function App() {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
-  const isSignedInAccount = Boolean(currentUser && !currentUser.isAnonymous);
+  const isSignedInAccount = Boolean(
+    (currentUser && !currentUser.isAnonymous) || (isRestoringSession && !profile.isGuest)
+  );
+  const isGuestSession = !isSignedInAccount;
   const showEntryGate = !isSignedInAccount && !hasChosenEntryMode;
 
   return (
@@ -1162,7 +1352,7 @@ export default function App() {
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled((prev) => !prev)}
         onOpenAuth={() => setAuthModalOpen(true)}
-        isLoggedIn={Boolean(currentUser && !currentUser.isAnonymous)}
+        isLoggedIn={isSignedInAccount}
         userDisplayName={profile.displayName}
       />
 
@@ -1196,7 +1386,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 px-4 py-4 pb-32 overflow-x-hidden">
+      <main className={`flex-1 px-4 py-4 overflow-x-hidden ${isKeyboardOpen ? 'pb-6' : 'pb-32'}`}>
         {activeTab === 'home' && (
           <HomeScreen
             profile={profile}
@@ -1244,7 +1434,7 @@ export default function App() {
         {activeTab === 'online' && (
           <OnlineLobby
             profile={profile}
-            onlinePlayers={onlinePlayers}
+            onlinePlayers={mergedOnlinePlayers}
             isMatchmaking={isMatchmaking}
             matchmakingTime={matchmakingTime}
             onStartMatchmaking={handleStartMatchmaking}
@@ -1265,10 +1455,11 @@ export default function App() {
             onRefreshPlayers={async () => {
               const latest = await fetchOnlinePlayersOnce();
               setOnlinePlayers(latest);
+              setCommunityTick(Date.now());
               addToast('Refreshed active players list.');
             }}
             myUid={currentUser?.uid}
-            isGuest={Boolean(profile.isGuest || !currentUser || currentUser.isAnonymous)}
+            isGuest={isGuestSession}
             onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
@@ -1286,9 +1477,9 @@ export default function App() {
 
         {activeTab === 'ranks' && (
           <LeaderboardScreen
-            players={leaderboard}
-            currentUid={currentUser?.uid}
-            isGuest={Boolean(profile.isGuest || !currentUser || currentUser.isAnonymous)}
+            players={mergedLeaderboard}
+            currentUid={currentUser?.uid || profile.uid}
+            isGuest={isGuestSession}
             onOpenAuth={() => setAuthModalOpen(true)}
           />
         )}
@@ -1325,7 +1516,7 @@ export default function App() {
               addToast('Profile updated successfully!', 'success');
             }}
             onOpenAuth={() => setAuthModalOpen(true)}
-            isLoggedIn={Boolean(currentUser && !currentUser.isAnonymous)}
+            isLoggedIn={isSignedInAccount}
             email={currentUser?.email}
           />
         )}
@@ -1359,39 +1550,43 @@ export default function App() {
                 await handleCancelMatchmaking();
               }
               const wasGuest = Boolean(profile.isGuest || currentUser?.isAnonymous);
+              storage.set('signed_in_uid', null);
+              setIsRestoringSession(false);
               await logOut(wasGuest);
               const freshProf = storage.getProfile();
               setProfile(freshProf);
               setHasChosenEntryMode(false);
               addToast(wasGuest ? 'Guest session erased permanently.' : 'Signed out successfully.');
             }}
-            isLoggedIn={Boolean(currentUser && !currentUser.isAnonymous)}
-            isGuest={Boolean(profile.isGuest || currentUser?.isAnonymous)}
+            isLoggedIn={isSignedInAccount}
+            isGuest={isGuestSession}
           />
         )}
       </main>
 
-      {/* Bottom Navigation */}
-      <BottomNav
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          if (activeTab === 'arena' && gameMode === 'online') {
-            setConfirmDialog({
-              title: 'Leave Online Match?',
-              message: 'Leaving now will end this live match for both players.',
-              confirmLabel: 'Leave Match',
-              onConfirm: () => {
-                setConfirmDialog(null);
-                handleExitOnline(true);
-                setActiveTab(tab);
-              }
-            });
-            return;
-          }
-          setActiveTab(tab);
-        }}
-        onlinePlayerCount={onlinePlayers.filter((p) => p.uid !== currentUser?.uid).length}
-      />
+      {/* Bottom Navigation (Automatically hidden while mobile soft keyboard is open so inputs never get squished) */}
+      {!isKeyboardOpen && (
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            if (activeTab === 'arena' && gameMode === 'online') {
+              setConfirmDialog({
+                title: 'Leave Online Match?',
+                message: 'Leaving now will end this live match for both players.',
+                confirmLabel: 'Leave Match',
+                onConfirm: () => {
+                  setConfirmDialog(null);
+                  handleExitOnline(true);
+                  setActiveTab(tab);
+                }
+              });
+              return;
+            }
+            setActiveTab(tab);
+          }}
+          onlinePlayerCount={mergedOnlinePlayers.length}
+        />
+      )}
 
       {/* In-App Confirmation Dialog */}
       {confirmDialog && (
@@ -1475,16 +1670,22 @@ export default function App() {
         isEntryGate={showEntryGate}
         onClose={() => setAuthModalOpen(false)}
         onSignIn={async (email, pass) => {
-          await loginWithEmail(email, pass);
+          const res: any = await loginWithEmail(email, pass);
+          const uid = res?.user?.uid || res?.uid;
+          if (uid) storage.set('signed_in_uid', uid);
           setHasChosenEntryMode(true);
           addToast('Signed in successfully!', 'success');
         }}
         onRegister={async (email, pass, fullName, avatarEmoji) => {
-          await registerWithEmail(email, pass, fullName, avatarEmoji);
+          const res: any = await registerWithEmail(email, pass, fullName, avatarEmoji);
+          const uid = res?.user?.uid || res?.uid;
+          if (uid) storage.set('signed_in_uid', uid);
           setHasChosenEntryMode(true);
           addToast('Account created and verified!', 'success');
         }}
         onContinueGuest={() => {
+          storage.set('signed_in_uid', null);
+          setIsRestoringSession(false);
           const guestProf = storage.getProfile();
           guestProf.isGuest = true;
           delete guestProf.numericUid;

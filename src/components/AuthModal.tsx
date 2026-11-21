@@ -108,18 +108,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div
+      data-auth-modal="true"
       className={`fixed inset-0 z-50 overflow-y-auto overscroll-contain ${
         isEntryGate ? 'bg-[var(--bg-base)]' : 'bg-black/65 backdrop-blur-md'
       }`}
+      onFocusCapture={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+          setTimeout(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 180);
+        }
+      }}
     >
       {/* Centered layout anchored to stableMinHeight so it sits perfectly in the middle
           of the screen and never jumps when opening the keyboard */}
       <div
         className="w-full flex flex-col items-center justify-center px-5"
         style={{
-          minHeight: `${stableMinHeight}px`,
+          minHeight: `min(100%, ${stableMinHeight}px)`,
           paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
-          paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))'
+          paddingBottom: 'max(2rem, env(safe-area-inset-bottom))'
         }}
       >
         <div
