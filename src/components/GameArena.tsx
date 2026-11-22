@@ -25,6 +25,7 @@ interface GameArenaProps {
   onSendMessage?: (text: string) => void;
   myUid?: string;
   restartRequestedByMe?: boolean;
+  isCommunityMatch?: boolean;
 }
 
 export const GameArena: React.FC<GameArenaProps> = ({
@@ -48,7 +49,8 @@ export const GameArena: React.FC<GameArenaProps> = ({
   chatMessages = [],
   onSendMessage,
   myUid,
-  restartRequestedByMe
+  restartRequestedByMe,
+  isCommunityMatch = false
 }) => {
   const [chatText, setChatText] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -93,7 +95,7 @@ export const GameArena: React.FC<GameArenaProps> = ({
         {/* Player X */}
         <div className={`flex flex-col items-center flex-1 transition-transform ${currentTurn === 'X' && !isGameOver ? 'scale-105' : 'opacity-80'}`}>
           <span className="text-xs font-bold max-w-[90px] truncate" style={{ color: 'var(--text-main)' }}>
-            {playerXName} {mode === 'online' && mySymbol === 'X' ? '(You)' : ''}
+            {playerXName} {(mode === 'online' && mySymbol === 'X') || isCommunityMatch ? '(You)' : ''}
           </span>
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center font-display font-extrabold text-lg my-1 border-2"
@@ -124,6 +126,10 @@ export const GameArena: React.FC<GameArenaProps> = ({
               ? 'MATCH OVER'
               : mode === 'online'
               ? isMyTurn
+                ? 'YOUR TURN'
+                : "OPPONENT'S TURN"
+              : isCommunityMatch
+              ? currentTurn === 'X'
                 ? 'YOUR TURN'
                 : "OPPONENT'S TURN"
               : mode === 'computer' && currentTurn === 'O'
@@ -158,8 +164,8 @@ export const GameArena: React.FC<GameArenaProps> = ({
         </div>
       </div>
 
-      {/* AI Difficulty Selector (Single player only) */}
-      {mode === 'computer' && (
+      {/* AI Difficulty Selector (Single player vs XO Bot only) */}
+      {mode === 'computer' && !isCommunityMatch && (
         <div
           className="w-full flex rounded-xl border p-1"
           style={{
@@ -228,7 +234,7 @@ export const GameArena: React.FC<GameArenaProps> = ({
 
       {/* Action Buttons Row */}
       <div className="w-full flex items-center gap-2">
-        {mode !== 'online' && (
+        {mode !== 'online' && !isCommunityMatch && (
           <button
             onClick={() => {
               sound.playClick();
@@ -276,8 +282,8 @@ export const GameArena: React.FC<GameArenaProps> = ({
         </button>
       </div>
 
-      {/* Online Chat & Reactions Bar */}
-      {mode === 'online' && (
+      {/* Online & Challenge Match Chat & Reactions Bar */}
+      {(mode === 'online' || isCommunityMatch) && (
         <div
           className="w-full rounded-2xl border flex flex-col overflow-hidden shadow-sm"
           style={{

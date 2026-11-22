@@ -18,9 +18,12 @@ import { haptics } from './services/haptics';
 import { applySystemBarsTheme } from './services/systemBars';
 import { checkWinner, getAIMove } from './services/ai';
 import {
+  getCommunityChatReply,
+  getCommunityGreeting,
+  getCommunityPlayerSkill,
+  getCommunityResultReaction,
   getDynamicCommunityOnlinePlayers,
   getDynamicCommunityProfiles,
-  getCommunityPlayerSkill,
   isCommunityPlayerUid
 } from './services/communityPlayers';
 import {
@@ -104,6 +107,9 @@ export default function App() {
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
   const [communityTick, setCommunityTick] = useState<number>(() => Date.now());
+  const [sessionRosterSeed, setSessionRosterSeed] = useState<number>(() =>
+    Math.floor(Math.random() * 100000) + 1
+  );
 
   // Toast notifications
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -143,6 +149,11 @@ export default function App() {
     targetUid: string;
     targetName: string;
   } | null>(null);
+  const [activeCommunityOpponent, setActiveCommunityOpponent] = useState<{
+    uid: string;
+    name: string;
+  } | null>(null);
+  const communityChatTimerRef = useRef<any>(null);
 
   // Refs to prevent listener leaks, stale closures, and duplicate round endings
   const outgoingChallengeUnsubRef = useRef<(() => void) | null>(null);
@@ -226,6 +237,7 @@ export default function App() {
       if (outgoingChallengeTimerRef.current) clearTimeout(outgoingChallengeTimerRef.current);
       if (privateRoomWaiterRef.current) privateRoomWaiterRef.current();
       if (aiMoveTimerRef.current) clearTimeout(aiMoveTimerRef.current);
+      if (communityChatTimerRef.current) clearTimeout(communityChatTimerRef.current);
     };
   }, []);
 
@@ -675,8 +687,18 @@ export default function App() {
     }
   };
 
+  const cancelPendingCommunityChat = () => {
+    if (communityChatTimerRef.current) {
+      clearTimeout(communityChatTimerRef.current);
+      communityChatTimerRef.current = null;
+    }
+  };
+
   const startComputerMatch = () => {
     cancelPendingAIMove();
+    cancelPendingCommunityChat();
+    setActiveCommunityOpponent(null);
+    setChatMessages([]);
     setGameMode('computer');
     setBoard(Array(9).fill(null));
     setCurrentTurn('X');
@@ -693,6 +715,9 @@ export default function App() {
 
   const startLocalMatch = (nameX: string, nameO: string) => {
     cancelPendingAIMove();
+    cancelPendingCommunityChat();
+    setActiveCommunityOpponent(null);
+    setChatMessages([]);
     setGameMode('local');
     setBoard(Array(9).fill(null));
     setCurrentTurn('X');
@@ -768,11 +793,31 @@ export default function App() {
       const draw = outcome.winner === 'draw';
 
       if (gameMode === 'computer') {
+        const res = draw ? 'draw' : won ? 'win' : 'loss';
         handleMatchEnded(
-          draw ? 'draw' : won ? 'win' : 'loss',
+          res,
           outcome.winner,
-          `AI (${aiDifficulty})`
+          activeCommunityOpponent ? 'Online Challenge' : `AI (${aiDifficulty})`
         );
+        if (activeCommunityOpponent) {
+          const opp = activeCommunityOpponent;
+          cancelPendingCommunityChat();
+          communityChatTimerRef.current = setTimeout(() => {
+            setChatMessages((prev) => {
+              const recentBotTexts = prev.filter((m) => m.senderUid === opp.uid).map((m) => m.text);
+              return [
+                ...prev,
+                {
+                  id: 'sim_msg_' + Date.now().toString(36),
+                  senderUid: opp.uid,
+                  senderName: opp.name,
+                  text: getCommunityResultReaction(res, opp.uid, opp.name, recentBotTexts),
+                  timestamp: Date.now()
+                }
+              ];
+            });
+          }, 700);
+        }
       } else {
         // Local 2-Player
         handleMatchEnded(
@@ -787,13 +832,14 @@ export default function App() {
     const nextTurn = currentTurn === 'X' ? 'O' : 'X';
     setCurrentTurn(nextTurn);
 
-    // AI Response move (tracked by ref so Restart/Undo/Exit cleanly cancels it; snappy 260ms feel)
+    // Opponent / AI Response move (natural human cadence for challenged players, snappy 260ms for XO Bot)
     if (gameMode === 'computer' && nextTurn === 'O') {
       cancelPendingAIMove();
+      const delayMs = activeCommunityOpponent ? 420 + Math.floor(Math.random() * 420) : 260;
       aiMoveTimerRef.current = setTimeout(() => {
         aiMoveTimerRef.current = null;
         executeAIMove(newBoard);
-      }, 260);
+      }, delayMs);
     }
   };
 
@@ -812,11 +858,31 @@ export default function App() {
       setIsGameOver(true);
       setWinningLine(outcome.line);
       const draw = outcome.winner === 'draw';
+      const res = draw ? 'draw' : outcome.winner === 'X' ? 'win' : 'loss';
       handleMatchEnded(
-        draw ? 'draw' : outcome.winner === 'X' ? 'win' : 'loss',
+        res,
         outcome.winner,
-        `AI (${aiDifficulty})`
+        activeCommunityOpponent ? 'Online Challenge' : `AI (${aiDifficulty})`
       );
+      if (activeCommunityOpponent) {
+        const opp = activeCommunityOpponent;
+        cancelPendingCommunityChat();
+        communityChatTimerRef.current = setTimeout(() => {
+          setChatMessages((prev) => {
+            const recentBotTexts = prev.filter((m) => m.senderUid === opp.uid).map((m) => m.text);
+            return [
+              ...prev,
+              {
+                id: 'sim_msg_' + Date.now().toString(36),
+                senderUid: opp.uid,
+                senderName: opp.name,
+                text: getCommunityResultReaction(res, opp.uid, opp.name, recentBotTexts),
+                timestamp: Date.now()
+              }
+            ];
+          });
+        }, 700);
+      }
     } else {
       setCurrentTurn('X');
     }
@@ -1035,6 +1101,7 @@ export default function App() {
     setWinningLine([]);
     setIsGameOver(false);
     setScores({ X: 0, O: 0, draws: 0 });
+    setActiveCommunityOpponent(null);
     setChatMessages([]);
     setRestartRequestedByMe(false);
     setResultModal({ isOpen: false, outcome: null, earnedXP: 0 });
@@ -1201,7 +1268,10 @@ export default function App() {
           haptics.trigger([40, 40, 80]);
           addToast(`${targetName} accepted! Entering match...`, 'success');
           cancelPendingAIMove();
+          cancelPendingCommunityChat();
           setAiDifficulty(getCommunityPlayerSkill(targetUid));
+          setActiveCommunityOpponent({ uid: targetUid, name: targetName });
+          setChatMessages([]);
           setGameMode('computer');
           setBoard(Array(9).fill(null));
           setCurrentTurn('X');
@@ -1214,6 +1284,20 @@ export default function App() {
           });
           setScores({ X: 0, O: 0, draws: 0 });
           setActiveTab('arena');
+
+          // Friendly opening message so match chat feels immediately alive
+          communityChatTimerRef.current = setTimeout(() => {
+            setChatMessages((prev) => [
+              ...prev,
+              {
+                id: 'sim_greet_' + Date.now().toString(36),
+                senderUid: targetUid,
+                senderName: targetName,
+                text: getCommunityGreeting(targetUid, targetName),
+                timestamp: Date.now()
+              }
+            ]);
+          }, 950);
         }, 1600);
         return;
       }
@@ -1279,8 +1363,42 @@ export default function App() {
   };
 
   const handleSendChatMessage = (text: string) => {
-    if (!activeOnlineMatchId || !currentUser) return;
-    sendChatMessage(activeOnlineMatchId, text, currentUser.uid, profile.displayName || 'Player');
+    if (activeOnlineMatchId && currentUser) {
+      sendChatMessage(activeOnlineMatchId, text, currentUser.uid, profile.displayName || 'Player');
+      return;
+    }
+
+    if (activeCommunityOpponent) {
+      const opp = activeCommunityOpponent;
+      const mySenderUid = currentUser?.uid || profile.uid || 'me';
+      const myMsg: ChatMessage = {
+        id: 'local_msg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+        senderUid: mySenderUid,
+        senderName: profile.displayName || 'Player',
+        text,
+        timestamp: Date.now()
+      };
+      setChatMessages((prev) => [...prev, myMsg]);
+
+      cancelPendingCommunityChat();
+      const replyDelay = 750 + Math.floor(Math.random() * 850);
+      const myPlayerName = profileRef.current.displayName || 'Player';
+      communityChatTimerRef.current = setTimeout(() => {
+        setChatMessages((prev) => {
+          const recentBotTexts = prev.filter((m) => m.senderUid === opp.uid).map((m) => m.text);
+          return [
+            ...prev,
+            {
+              id: 'sim_reply_' + Date.now().toString(36),
+              senderUid: opp.uid,
+              senderName: opp.name,
+              text: getCommunityChatReply(text, opp.uid, opp.name, myPlayerName, recentBotTexts),
+              timestamp: Date.now()
+            }
+          ];
+        });
+      }, replyDelay);
+    }
   };
 
   // Theme Cycling
@@ -1291,10 +1409,21 @@ export default function App() {
     addToast(`Theme: ${themes[nextIdx].toUpperCase()}`);
   };
 
-  // Merge real Firebase leaderboard with daily-growing community players (works both offline & online)
+  // Highest real player level so Top 20 community veterans always stay adaptively ahead (Level 100+)
+  const highestRealLevel = useMemo(() => {
+    let maxLvl = profile.level || 1;
+    leaderboard.forEach((p) => {
+      if (p.uid && !isCommunityPlayerUid(p.uid)) {
+        maxLvl = Math.max(maxLvl, p.level || 1);
+      }
+    });
+    return maxLvl;
+  }, [leaderboard, profile.level]);
+
+  // Merge real Firebase leaderboard with Level 100+ daily-growing community players (Strictly Top 20!)
   const mergedLeaderboard = useMemo(() => {
     const byUid = new Map<string, UserProfile>();
-    const communityProfiles = getDynamicCommunityProfiles(communityTick);
+    const communityProfiles = getDynamicCommunityProfiles(communityTick, highestRealLevel);
     communityProfiles.forEach((p) => {
       if (p.uid) byUid.set(p.uid, p);
     });
@@ -1304,9 +1433,9 @@ export default function App() {
     return Array.from(byUid.values())
       .sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0))
       .slice(0, 20);
-  }, [leaderboard, communityTick]);
+  }, [leaderboard, communityTick, highestRealLevel]);
 
-  // Merge real online Firebase players (always listed first!) with live rotating community players
+  // Merge real online Firebase players (always listed first!) with dynamically varying active players (4-18)
   const mergedOnlinePlayers = useMemo(() => {
     const result: OnlinePlayer[] = [];
     const seen = new Set<string>();
@@ -1316,14 +1445,14 @@ export default function App() {
         result.push(p);
       }
     });
-    getDynamicCommunityOnlinePlayers(communityTick).forEach((p) => {
+    getDynamicCommunityOnlinePlayers(communityTick, highestRealLevel, sessionRosterSeed).forEach((p) => {
       if (p.uid && !seen.has(p.uid)) {
         seen.add(p.uid);
         result.push(p);
       }
     });
     return result;
-  }, [onlinePlayers, communityTick, currentUser?.uid]);
+  }, [onlinePlayers, communityTick, highestRealLevel, sessionRosterSeed, currentUser?.uid]);
 
   const handleSplashComplete = useCallback(() => {
     setIsAppLoading(false);
@@ -1420,14 +1549,24 @@ export default function App() {
             onUndo={handleUndoMove}
             onRestart={handleRestartGame}
             onExit={() => {
-              if (gameMode === 'online') handleExitOnline();
-              else setActiveTab('home');
+              if (gameMode === 'online') {
+                handleExitOnline();
+              } else if (activeCommunityOpponent) {
+                cancelPendingAIMove();
+                cancelPendingCommunityChat();
+                setActiveCommunityOpponent(null);
+                setChatMessages([]);
+                setActiveTab('online');
+              } else {
+                setActiveTab('home');
+              }
             }}
             roomCode={currentRoomCode}
             chatMessages={chatMessages}
             onSendMessage={handleSendChatMessage}
-            myUid={currentUser?.uid}
+            myUid={currentUser?.uid || profile.uid}
             restartRequestedByMe={restartRequestedByMe}
+            isCommunityMatch={Boolean(activeCommunityOpponent)}
           />
         )}
 
@@ -1456,6 +1595,7 @@ export default function App() {
               const latest = await fetchOnlinePlayersOnce();
               setOnlinePlayers(latest);
               setCommunityTick(Date.now());
+              setSessionRosterSeed((s) => s + 1 + Math.floor(Math.random() * 97));
               addToast('Refreshed active players list.');
             }}
             myUid={currentUser?.uid}
@@ -1582,6 +1722,12 @@ export default function App() {
               });
               return;
             }
+            if (activeTab === 'arena' && activeCommunityOpponent && tab !== 'arena') {
+              cancelPendingAIMove();
+              cancelPendingCommunityChat();
+              setActiveCommunityOpponent(null);
+              setChatMessages([]);
+            }
             setActiveTab(tab);
           }}
           onlinePlayerCount={mergedOnlinePlayers.length}
@@ -1673,6 +1819,7 @@ export default function App() {
           const res: any = await loginWithEmail(email, pass);
           const uid = res?.user?.uid || res?.uid;
           if (uid) storage.set('signed_in_uid', uid);
+          setSessionRosterSeed((s) => s + 1 + Math.floor(Math.random() * 97));
           setHasChosenEntryMode(true);
           addToast('Signed in successfully!', 'success');
         }}
@@ -1680,6 +1827,7 @@ export default function App() {
           const res: any = await registerWithEmail(email, pass, fullName, avatarEmoji);
           const uid = res?.user?.uid || res?.uid;
           if (uid) storage.set('signed_in_uid', uid);
+          setSessionRosterSeed((s) => s + 1 + Math.floor(Math.random() * 97));
           setHasChosenEntryMode(true);
           addToast('Account created and verified!', 'success');
         }}
@@ -1691,6 +1839,7 @@ export default function App() {
           delete guestProf.numericUid;
           storage.saveProfile(guestProf);
           setProfile({ ...guestProf });
+          setSessionRosterSeed((s) => s + 1 + Math.floor(Math.random() * 97));
           setHasChosenEntryMode(true);
           addToast('Playing as Guest (No ID).');
         }}

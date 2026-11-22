@@ -60,7 +60,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
             </h3>
           </div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Top {Math.max(10, players.length)} Competitors
+            Top 20 Competitors
           </span>
         </div>
 
@@ -70,7 +70,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({
               Loading rankings...
             </div>
           ) : (
-            players.map((player, idx) => {
+            players.slice(0, 20).map((player, idx) => {
               const isMe = player.uid === currentUid;
               const medals = ['🥇', '🥈', '🥉'];
               const medal = medals[idx] || `${idx + 1}`;
