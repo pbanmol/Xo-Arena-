@@ -92,8 +92,65 @@
     --nav-border: #fecdd3;
   }
 
-  /* NEON PURPLE DARK THEME */
-  html[data-theme="neon"] {
+  /* DARK OVERRIDE FOR DEFAULT LIGHT THEME (lower specificity (0,1,1) so specific dark themes below always win!) */
+  html[data-dark="true"] {
+    --bg-base: #0b0f19;
+    --bg-surface: #131b2e;
+    --bg-surface-elevated: #1e293b;
+    --bg-card: #141f36;
+    --border-subtle: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --header-bg: #0f172a;
+    --nav-bg: #0f172a;
+    --nav-border: #334155;
+  }
+
+  /* OCEAN DARK THEME (0,2,1) */
+  html[data-theme="ocean"][data-dark="true"] {
+    --bg-base: #061624;
+    --bg-surface: #0b2236;
+    --bg-surface-elevated: #10304d;
+    --bg-card: #0c263d;
+    --border-subtle: #1e4b70;
+    --text-main: #f0f9ff;
+    --text-muted: #93c5fd;
+    --header-bg: #082032;
+    --nav-bg: #082032;
+    --nav-border: #1e4b70;
+  }
+
+  /* EMERALD DARK THEME (0,2,1) */
+  html[data-theme="emerald"][data-dark="true"] {
+    --bg-base: #041a14;
+    --bg-surface: #082920;
+    --bg-surface-elevated: #0d3a2e;
+    --bg-card: #092e24;
+    --border-subtle: #165947;
+    --text-main: #ecfdf5;
+    --text-muted: #6ee7b7;
+    --header-bg: #05231b;
+    --nav-bg: #05231b;
+    --nav-border: #165947;
+  }
+
+  /* CRIMSON DARK THEME (0,2,1) */
+  html[data-theme="crimson"][data-dark="true"] {
+    --bg-base: #1a060e;
+    --bg-surface: #280a16;
+    --bg-surface-elevated: #3a1020;
+    --bg-card: #2c0c19;
+    --border-subtle: #5c1a33;
+    --text-main: #fff1f2;
+    --text-muted: #fda4af;
+    --header-bg: #260914;
+    --nav-bg: #260914;
+    --nav-border: #5c1a33;
+  }
+
+  /* NEON PURPLE DARK THEME (always dark, beats html[data-dark="true"]) */
+  html[data-theme="neon"],
+  html[data-theme="neon"][data-dark="true"] {
     --bg-base: #090514;
     --bg-surface: #120b24;
     --bg-surface-elevated: #1a1033;
@@ -112,8 +169,9 @@
     --nav-border: rgba(168, 85, 247, 0.25);
   }
 
-  /* BLACK LUXURY THEME */
-  html[data-theme="black"] {
+  /* BLACK LUXURY THEME (always dark, beats html[data-dark="true"]) */
+  html[data-theme="black"],
+  html[data-theme="black"][data-dark="true"] {
     --bg-base: #050505;
     --bg-surface: #101010;
     --bg-surface-elevated: #181818;
@@ -130,53 +188,6 @@
     --header-bg: #09090b;
     --nav-bg: #09090b;
     --nav-border: #27272a;
-  }
-
-  /* DARK OVERRIDE FOR LIGHT ACCENTS */
-  html[data-dark="true"]:not([data-theme="neon"]):not([data-theme="black"]) {
-    --bg-base: #0b0f19;
-    --bg-surface: #131b2e;
-    --bg-surface-elevated: #1e293b;
-    --bg-card: #141f36;
-    --border-subtle: #334155;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --header-bg: #0f172a;
-    --nav-bg: #0f172a;
-    --nav-border: #334155;
-  }
-
-  html[data-theme="ocean"][data-dark="true"] {
-    --bg-base: #061624;
-    --bg-surface: #0b2236;
-    --bg-surface-elevated: #10304d;
-    --bg-card: #0c263d;
-    --border-subtle: #1e4b70;
-    --header-bg: #082032;
-    --nav-bg: #082032;
-    --nav-border: #1e4b70;
-  }
-
-  html[data-theme="emerald"][data-dark="true"] {
-    --bg-base: #041a14;
-    --bg-surface: #082920;
-    --bg-surface-elevated: #0d3a2e;
-    --bg-card: #092e24;
-    --border-subtle: #165947;
-    --header-bg: #05231b;
-    --nav-bg: #05231b;
-    --nav-border: #165947;
-  }
-
-  html[data-theme="crimson"][data-dark="true"] {
-    --bg-base: #1a060e;
-    --bg-surface: #280a16;
-    --bg-surface-elevated: #3a1020;
-    --bg-card: #2c0c19;
-    --border-subtle: #5c1a33;
-    --header-bg: #260914;
-    --nav-bg: #260914;
-    --nav-border: #5c1a33;
   }
 }
 

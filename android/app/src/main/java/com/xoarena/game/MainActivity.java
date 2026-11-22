@@ -1,6 +1,7 @@
 package com.xoarena.game;
 
 import android.Manifest;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -21,6 +22,7 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private static final int REQUEST_MEDIA_PERMISSION_CODE = 1001;
+    private static final String PREFS_THEME = "xo_arena_system_bars";
     private View rootContentView;
 
     @Override
@@ -32,9 +34,15 @@ public class MainActivity extends BridgeActivity {
 
         rootContentView = findViewById(android.R.id.content);
         if (rootContentView != null) {
-            // Default to Crimson Light theme until WebView syncs user's saved theme
-            applySystemBarColors("#FFE4E6", "#FFE4E6", "#FFF1F2", false);
-            rootContentView.post(() -> applySystemBarColors("#FFE4E6", "#FFE4E6", "#FFF1F2", false));
+            // Restore last applied theme colors immediately on cold start (zero color flash!)
+            SharedPreferences prefs = getSharedPreferences(PREFS_THEME, MODE_PRIVATE);
+            final String initStatus = prefs.getString("statusHex", "#ffe4e6");
+            final String initNav = prefs.getString("navHex", "#ffe4e6");
+            final String initBg = prefs.getString("bgBaseHex", "#fff1f2");
+            final boolean initDark = prefs.getBoolean("isDarkBars", false);
+
+            applySystemBarColors(initStatus, initNav, initBg, initDark, false);
+            rootContentView.post(() -> applySystemBarColors(initStatus, initNav, initBg, initDark, false));
 
             ViewCompat.setOnApplyWindowInsetsListener(rootContentView, (view, windowInsets) -> {
                 Insets bars = windowInsets.getInsets(
@@ -86,19 +94,41 @@ public class MainActivity extends BridgeActivity {
         });
     }
 
-    private void applySystemBarColors(String statusHex, String navHex, String bgBaseHex, boolean isDarkBars) {
+    private void applySystemBarColors(
+        String statusHex,
+        String navHex,
+        String bgBaseHex,
+        boolean isDarkBars,
+        boolean persist
+    ) {
         try {
             int statusColor = Color.parseColor(statusHex);
             int navColor = Color.parseColor(navHex);
             Window window = getWindow();
             if (window == null) return;
 
+            if (persist) {
+                getSharedPreferences(PREFS_THEME, MODE_PRIVATE)
+                    .edit()
+                    .putString("statusHex", statusHex)
+                    .putString("navHex", navHex)
+                    .putString("bgBaseHex", bgBaseHex)
+                    .putBoolean("isDarkBars", isDarkBars)
+                    .apply();
+            }
+
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             window.setStatusBarColor(statusColor);
             window.setNavigationBarColor(navColor);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.setStatusBarContrastEnforced(false);
                 window.setNavigationBarContrastEnforced(false);
+            }
+
+            View decorView = window.getDecorView();
+            if (decorView != null) {
+                decorView.setBackgroundColor(statusColor);
             }
 
             if (rootContentView != null) {
@@ -124,7 +154,7 @@ public class MainActivity extends BridgeActivity {
             final String bgBaseHex,
             final boolean isDarkBars
         ) {
-            runOnUiThread(() -> applySystemBarColors(statusHex, navHex, bgBaseHex, isDarkBars));
+            runOnUiThread(() -> applySystemBarColors(statusHex, navHex, bgBaseHex, isDarkBars, true));
         }
     }
 
